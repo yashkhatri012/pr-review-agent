@@ -1,0 +1,25 @@
+                    Pull Request
+                         │
+          ┌──────────────┴──────────────┐
+          ▼                             ▼
+   Changed-file context           Related-file discovery
+   ALWAYS included                       │
+          │                     ┌────────┴────────┐
+          │                     ▼                 ▼
+          │              Same directory       Imports
+          │                     │                 │
+          │                     └────────┬────────┘
+          │                              ▼
+          │                      Related candidates
+          │                              │
+          │                         Read + chunk
+          │                              │
+          │                         ChromaDB
+          │                              │
+          │                       Semantic top-K
+          │                              │
+          └───────────────┬──────────────┘
+                          ▼
+                   Merge + deduplicate
+                          ▼
+                    AgentContext
