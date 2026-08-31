@@ -1,3 +1,4 @@
+
 """Repository context retrieval for pull request reviews.
 
 Strategy:
@@ -13,7 +14,7 @@ Strategy:
 4. Retrieve the top-K related chunks most relevant to the PR using semantic
    similarity.
 
-5. Merge mandatory changed-file context with retrieved supporting context.
+5. Return changed-file context separately from retrieved supporting context.
 
 6. Delete the temporary collection once retrieval is complete so the vector
    store does not grow unbounded across reviews.
@@ -74,65 +75,52 @@ class RAGService:
         self,
         pull_request: PullRequest,
     ) -> RetrievalResult:
-        """Build mandatory and retrieved repository context for a PR.
+        """Build changed-file and supporting repository context for a PR.
 
-        All changed-file chunks are included deterministically. Additional
-        repository context is selected using semantic retrieval.
+        Changed-file chunks are mandatory context. Supporting chunks are
+        retrieved from related repository files using semantic similarity.
         """
 
-        # Changed files are mandatory review context.
         changed_chunks = await self._read_changed_file_chunks(
             pull_request,
         )
 
-        # Discover additional repository files related to the PR.
         related_paths = await self._select_related_paths(
             pull_request,
         )
 
-        # Limit only additional repository files.
         related_paths = related_paths[:MAX_RELATED_FILES_TO_READ]
 
-        # Read and chunk additional repository files.
         related_chunks = await self._read_and_chunk_paths(
             pull_request,
             related_paths,
         )
 
-        # Retrieve the most relevant supporting chunks.
-        retrieved_chunks = await self._retrieve_supporting_context(
+        supporting_chunks = await self._retrieve_supporting_context(
             pull_request,
             related_chunks,
         )
 
-        # Combine mandatory and retrieved context.
-        final_chunks = self._merge_chunks(
-            changed_chunks,
-            retrieved_chunks,
-        )
-
         logger.info(
             "Built repository context for %s/%s#%s: "
-            "%d mandatory chunks + %d retrieved chunks = %d total",
+            "%d changed-file chunks and %d supporting chunks",
             pull_request.reference.owner,
             pull_request.reference.repository,
             pull_request.reference.number,
             len(changed_chunks),
-            len(retrieved_chunks),
-            len(final_chunks),
+            len(supporting_chunks),
         )
 
-        return RetrievalResult(chunks=final_chunks)
+        return RetrievalResult(
+            changed_file_chunks=changed_chunks,
+            supporting_chunks=supporting_chunks,
+        )
 
     async def _read_changed_file_chunks(
         self,
         pull_request: PullRequest,
     ) -> list[RepositoryChunk]:
-        """Read and chunk every file changed by the pull request.
-
-        Changed-file content is mandatory context and is never filtered
-        through semantic retrieval.
-        """
+        """Read and chunk every file changed by the pull request."""
 
         changed_paths = list(
             dict.fromkeys(
@@ -150,16 +138,7 @@ class RAGService:
         self,
         pull_request: PullRequest,
     ) -> list[str]:
-        """Select repository files likely related to the changed files.
-
-        Related files are discovered using:
-
-        - directory proximity
-        - imports appearing in changed-file patches
-
-        Changed files themselves are excluded because they are already
-        mandatory review context.
-        """
+        """Select repository files likely related to the changed files."""
 
         reference = pull_request.reference
 
@@ -171,7 +150,7 @@ class RAGService:
         repository_paths = await self._github.fetch_repository_tree(
             reference.owner,
             reference.repository,
-            pull_request.head_branch,
+            pull_request.head_sha,
         )
 
         same_directory_paths = self._find_same_directory_paths(
@@ -193,7 +172,6 @@ class RAGService:
             import_related_paths,
         )
 
-        # Changed files are handled separately as mandatory context.
         candidates = [
             path
             for path in candidates
@@ -241,8 +219,9 @@ class RAGService:
                 continue
 
             for pattern in _IMPORT_PATTERNS:
-                matches = pattern.findall(changed_file.patch)
-                imported_modules.update(matches)
+                imported_modules.update(
+                    pattern.findall(changed_file.patch)
+                )
 
         return imported_modules
 
@@ -251,13 +230,7 @@ class RAGService:
         imported_modules: set[str],
         repository_paths: list[str],
     ) -> list[str]:
-        """Resolve simple import references to repository file paths.
-
-        This is intentionally conservative. It supports straightforward
-        dotted Python-style imports and basic path-based imports but does not
-        attempt to fully resolve package aliases or language-specific module
-        resolution rules.
-        """
+        """Resolve simple import references to repository file paths."""
 
         resolved: list[str] = []
 
@@ -301,7 +274,7 @@ class RAGService:
                 reference.owner,
                 reference.repository,
                 file_path,
-                pull_request.head_branch,
+                pull_request.head_sha
             )
 
             if not content:
@@ -332,7 +305,7 @@ class RAGService:
         pull_request: PullRequest,
         chunks: list[RepositoryChunk],
     ) -> list[RepositoryChunk]:
-        """Retrieve related repository chunks most relevant to the PR."""
+        """Retrieve related chunks most relevant to the pull request."""
 
         if not chunks:
             return []
@@ -389,7 +362,7 @@ class RAGService:
 
             logger.info(
                 "RAG retrieval for %s/%s#%s: "
-                "%d chunks retrieved from %d related chunks",
+                "%d supporting chunks retrieved from %d candidates",
                 reference.owner,
                 reference.repository,
                 reference.number,
@@ -400,52 +373,9 @@ class RAGService:
             return retrieved
 
         finally:
-            # Collections are scoped to a single review and removed
-            # immediately after retrieval.
             self._client.delete_collection(
                 name=collection_name,
             )
-
-    @staticmethod
-    def _merge_chunks(
-        changed_chunks: list[RepositoryChunk],
-        retrieved_chunks: list[RepositoryChunk],
-    ) -> list[RepositoryChunk]:
-        """Merge mandatory and retrieved context without duplicates."""
-
-        seen: set[tuple[str, int]] = set()
-        merged: list[RepositoryChunk] = []
-
-        for chunk in changed_chunks + retrieved_chunks:
-            key = (
-                chunk.file_path,
-                chunk.chunk_index,
-            )
-
-            if key in seen:
-                continue
-
-            seen.add(key)
-            merged.append(chunk)
-
-        return merged
-
-    @staticmethod
-    def _deduplicate_paths(
-        *path_groups: list[str],
-    ) -> list[str]:
-        """Merge path groups while preserving their original priority order."""
-
-        seen: set[str] = set()
-        result: list[str] = []
-
-        for paths in path_groups:
-            for path in paths:
-                if path not in seen:
-                    seen.add(path)
-                    result.append(path)
-
-        return result
 
     @staticmethod
     def _build_query_text(
@@ -487,6 +417,25 @@ class RAGService:
         ]
 
     @staticmethod
+    def _deduplicate_paths(
+        *path_groups: list[str],
+    ) -> list[str]:
+        """Merge path groups while preserving priority order."""
+
+        seen: set[str] = set()
+        result: list[str] = []
+
+        for paths in path_groups:
+            for path in paths:
+                if path in seen:
+                    continue
+
+                seen.add(path)
+                result.append(path)
+
+        return result
+
+    @staticmethod
     def _collection_name(
         owner: str,
         repository: str,
@@ -525,10 +474,7 @@ def _chunk_text(
             start : start + chunk_size
         ]
 
-        chunks.append(
-            "\n".join(chunk_lines)
-        )
-
+        chunks.append("\n".join(chunk_lines))
         start += step
 
     return chunks
@@ -561,3 +507,4 @@ def _guess_language(
             return language
 
     return None
+

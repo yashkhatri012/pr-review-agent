@@ -10,13 +10,14 @@ from models.pr import PullRequest, PullRequestReference
 def _make_context() -> AgentContext:
     reference = PullRequestReference(owner="o", repository="r", number=1, url="https://github.com/o/r/pull/1")
     pr = PullRequest(
-        reference=reference,
-        title="Refactor helper",
-        author="octocat",
-        base_branch="main",
-        head_branch="feature",
-        changed_files=[],
-    )
+    reference=reference,
+    title="Refactor helper",
+    author="octocat",
+    base_branch="main",
+    head_branch="feature",
+    head_sha="abc123def456",
+    changed_files=[],
+)
     return AgentContext(pull_request=pr, repository_context=[])
 
 

@@ -36,13 +36,21 @@ def test_review_finding_accepts_valid_data():
 def test_pull_request_model_roundtrip():
     reference = PullRequestReference(owner="o", repository="r", number=1, url="https://github.com/o/r/pull/1")
     pr = PullRequest(
-        reference=reference,
-        title="Add feature",
-        author="octocat",
-        base_branch="main",
-        head_branch="feature",
-        changed_files=[ChangedFile(filename="a.py", status="modified", additions=1, deletions=0)],
-    )
+    reference=reference,
+    title="Add feature",
+    author="octocat",
+    base_branch="main",
+    head_branch="feature",
+    head_sha="abc123def456",
+    changed_files=[
+        ChangedFile(
+            filename="a.py",
+            status="modified",
+            additions=1,
+            deletions=0,
+        )
+    ],
+)
     assert pr.reference.number == 1
     assert len(pr.changed_files) == 1
 

@@ -1,9 +1,6 @@
-"""Shared base class for all specialized review agents.
 
-Agents never talk to a provider SDK directly -- they hold a ``BaseLLM``
-instance (injected) and call ``generate`` on it. See DECISIONS.md,
-decision 006.
-"""
+
+
 from __future__ import annotations
 
 import logging
@@ -45,50 +42,90 @@ class BaseReviewAgent(ABC):
     agent_name: str
 
     def __init__(self, llm: BaseLLM) -> None:
+        """Initialize the agent with its injected LLM implementation."""
+
         self._llm = llm
 
     @property
     @abstractmethod
     def focus_description(self) -> str:
-        """A short description of what this agent should look for."""
+        """Return a short description of the agent's review focus."""
+
         raise NotImplementedError
 
     def build_system_prompt(self) -> str:
+        """Build the system prompt defining the agent's review responsibility."""
+
         return (
             f"You are the {self.agent_name} agent, a specialized senior software "
             f"engineer reviewing a GitHub pull request.\n\n"
             f"Your ONLY focus is:\n{self.focus_description}\n\n"
-            "Only report issues you are reasonably confident about, supported by "
-            "the code shown to you. Do not report generic style preferences or "
-            "speculative concerns outside your focus area."
+            "Only report issues you are reasonably confident about and that are "
+            "supported by the code shown to you. Do not report generic style "
+            "preferences or speculative concerns outside your focus area.\n\n"
+            "The pull request diffs and changed-file context are the primary "
+            "review targets. Supporting repository context may be used to "
+            "understand dependencies, behavior, and architecture, but do not "
+            "report pre-existing issues in unchanged supporting files unless "
+            "the pull request directly introduces or causes the problem.\n"
             + _OUTPUT_FORMAT_INSTRUCTIONS
         )
 
     def build_user_prompt(self, context: AgentContext) -> str:
+        """Build the pull request and repository context for this agent."""
+
         pr = context.pull_request
+
         diff_sections = "\n\n".join(
-            f"### File: {f.filename} ({f.status}, +{f.additions}/-{f.deletions})\n"
-            f"{f.patch or '(no patch available)'}"
-            for f in pr.changed_files
+            f"### File: {changed_file.filename} "
+            f"({changed_file.status}, "
+            f"+{changed_file.additions}/-{changed_file.deletions})\n"
+            f"{changed_file.patch or '(no patch available)'}"
+            for changed_file in pr.changed_files
         )
-        context_sections = "\n\n".join(
-            f"### Repository context: {chunk.file_path} (chunk {chunk.chunk_index})\n"
+
+        changed_file_sections = "\n\n".join(
+            f"### Changed file: {chunk.file_path} "
+            f"(chunk {chunk.chunk_index})\n"
             f"{chunk.content}"
-            for chunk in context.repository_context
+            for chunk in context.changed_file_context
         )
+
+        supporting_sections = "\n\n".join(
+            f"### Supporting file: {chunk.file_path} "
+            f"(chunk {chunk.chunk_index})\n"
+            f"{chunk.content}"
+            for chunk in context.supporting_context
+        )
+
         return (
             f"Pull Request: {pr.title}\n"
             f"Description: {pr.description or '(no description)'}\n"
             f"Author: {pr.author}\n"
-            f"Base branch: {pr.base_branch} <- Head branch: {pr.head_branch}\n\n"
-            f"## Changed files (diffs)\n{diff_sections or '(no changed files)'}\n\n"
-            f"## Relevant repository context\n{context_sections or '(no additional context retrieved)'}\n"
+            f"Base branch: {pr.base_branch} <- "
+            f"Head branch: {pr.head_branch}\n\n"
+            "## Pull Request Diffs\n"
+            "These are the actual changes introduced by the pull request.\n\n"
+            f"{diff_sections or '(no changed files)'}\n\n"
+            "## Full Changed-File Context\n"
+            "These are full contents of files modified by the pull request. "
+            "They are the primary code-review target.\n\n"
+            f"{changed_file_sections or '(no changed-file context available)'}\n\n"
+            "## Supporting Repository Context\n"
+            "These chunks come from related repository files that may not have "
+            "been modified by this pull request. Use them to understand "
+            "dependencies and behavior. Do not report unrelated pre-existing "
+            "issues in this supporting code.\n\n"
+            f"{supporting_sections or '(no supporting context retrieved)'}\n"
         )
 
     async def review(self, context: AgentContext) -> AgentReview:
-        """Run this agent's review. Never raises -- failures degrade to an
-        empty finding set so one agent's failure doesn't sink the whole
-        review."""
+        """Run this agent's review.
+
+        Provider failures degrade to an empty finding set so one agent's
+        failure does not sink the entire review.
+        """
+
         try:
             result = await self._llm.generate(
                 system_prompt=self.build_system_prompt(),
@@ -96,15 +133,30 @@ class BaseReviewAgent(ABC):
                 response_model=AgentReview,
             )
         except LLMProviderError as exc:
-            logger.error("%s agent failed: %s", self.agent_name, exc)
-            return AgentReview(agent_name=self.agent_name, findings=[])
+            logger.error(
+                "%s agent failed: %s",
+                self.agent_name,
+                exc,
+            )
+            return AgentReview(
+                agent_name=self.agent_name,
+                findings=[],
+            )
 
         if not isinstance(result, AgentReview):
-            logger.error("%s agent returned an unexpected type: %s", self.agent_name, type(result))
-            return AgentReview(agent_name=self.agent_name, findings=[])
+            logger.error(
+                "%s agent returned an unexpected type: %s",
+                self.agent_name,
+                type(result),
+            )
+            return AgentReview(
+                agent_name=self.agent_name,
+                findings=[],
+            )
 
         for finding in result.findings:
             if self.agent_name not in finding.source_agents:
                 finding.source_agents.append(self.agent_name)
 
         return result
+

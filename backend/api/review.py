@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from config.settings import Settings, get_settings
 from llm.base import LLMProviderError
-from llm.factory import get_llm_provider
 from models.api import HealthResponse, ReviewRequest, ReviewResponse
 from services.github_service import (
     GitHubAuthError,
@@ -39,19 +38,13 @@ def _get_rag_service() -> RAGService:
 
 
 def get_review_service(settings: Settings = Depends(get_settings)) -> ReviewService:
-    """Build a ReviewService for this request.
-
-    The LLM provider is constructed fresh per request (cheap: no network
-    call happens until ``generate`` is invoked) so that provider/model
-    configuration changes are always picked up without restarting the
-    process's cached singletons.
-    """
-    llm = get_llm_provider(settings)
+    """Build a ReviewService for this request."""
+   
     return ReviewService(
         settings=settings,
         github_service=_get_github_service(),
         rag_service=_get_rag_service(),
-        llm=llm,
+        
     )
 
 

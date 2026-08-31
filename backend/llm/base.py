@@ -1,9 +1,4 @@
-"""Provider-agnostic LLM interface.
 
-Every concrete provider (Gemini, Groq, Mistral, OpenAI, ...) implements
-``BaseLLM``. Nothing outside the ``llm/`` package should ever import a
-provider SDK directly -- see DECISIONS.md, decision 006.
-"""
 from __future__ import annotations
 
 import json

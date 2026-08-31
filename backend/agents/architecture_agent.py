@@ -14,6 +14,6 @@ class ArchitectureAgent(BaseReviewAgent):
             "- Coupling between components\n"
             "- Overall architecture consistency\n"
             "- Repository conventions\n"
-            "- Long-term maintainability\n"
+            "- Long term maintainability\n"
             "Avoid subjective recommendations unless there is a clear architectural concern."
         )

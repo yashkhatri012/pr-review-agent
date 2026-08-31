@@ -32,4 +32,5 @@ class PullRequest(BaseModel):
     author: str
     base_branch: str
     head_branch: str
+    head_sha: str
     changed_files: list[ChangedFile] = Field(default_factory=list)

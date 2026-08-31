@@ -1,10 +1,4 @@
-"""Factory for constructing the configured LLM provider.
-
-This is the ONLY place in the application (besides ``llm/`` itself) that
-knows the mapping from a provider name to a concrete implementation.
-Agents and services call ``get_llm_provider()`` and never import a
-provider class directly.
-"""
+"""Factory for constructing configured LLM provider instances."""
 from __future__ import annotations
 
 from config.settings import Settings, get_settings
@@ -22,33 +16,51 @@ _PROVIDERS: dict[str, type[BaseLLM]] = {
 }
 
 
-def get_llm_provider(settings: Settings | None = None) -> BaseLLM:
-    """Instantiate the LLM provider configured via ``LLM_PROVIDER``."""
+def get_llm_provider(
+    provider: str,
+    model: str,
+    settings: Settings | None = None,
+) -> BaseLLM:
+    """Instantiate an LLM provider for a specific provider/model pair."""
     settings = settings or get_settings()
-    provider_key = settings.llm_provider.lower()
+
+    provider_key = provider.lower().strip()
 
     provider_cls = _PROVIDERS.get(provider_key)
     if provider_cls is None:
         raise LLMProviderError(
-            f"Unknown LLM_PROVIDER '{settings.llm_provider}'. "
+            f"Unknown LLM provider '{provider}'. "
             f"Supported providers: {', '.join(sorted(_PROVIDERS))}"
         )
 
+    if not model.strip():
+        raise LLMProviderError(
+            f"No model configured for provider '{provider_key}'."
+        )
+
     api_key = _resolve_api_key(provider_key, settings)
-    return provider_cls(api_key=api_key, model=settings.llm_model)
+
+    return provider_cls(
+        api_key=api_key,
+        model=model,
+    )
 
 
 def _resolve_api_key(provider_key: str, settings: Settings) -> str:
+    """Return the configured API key for an LLM provider."""
     api_keys = {
         "gemini": settings.gemini_api_key,
         "groq": settings.groq_api_key,
         "mistral": settings.mistral_api_key,
         "openai": settings.openai_api_key,
     }
+
     api_key = api_keys.get(provider_key)
+
     if not api_key:
         raise LLMProviderError(
             f"No API key configured for provider '{provider_key}'. "
-            f"Set the corresponding *_API_KEY environment variable."
+            f"Set the corresponding API key environment variable."
         )
+
     return api_key

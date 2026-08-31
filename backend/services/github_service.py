@@ -92,6 +92,7 @@ class GitHubService:
             author=pr_data.get("user", {}).get("login", "unknown"),
             base_branch=pr_data.get("base", {}).get("ref", ""),
             head_branch=pr_data.get("head", {}).get("ref", ""),
+            head_sha=pr_data.get("head", {}).get("sha", ""),
             changed_files=changed_files,
         )
 

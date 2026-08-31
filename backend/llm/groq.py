@@ -18,6 +18,8 @@ class GroqLLM(BaseLLM):
     def __init__(self, api_key: str, model: str, timeout: float = 60.0) -> None:
         if not api_key:
             raise LLMProviderError("GROQ_API_KEY is not configured.")
+        if not model:
+            raise LLMProviderError("LLM_MODEL is not configured for Groq.")
         self._api_key = api_key
         self._model = model
         self._timeout = timeout
@@ -49,7 +51,14 @@ class GroqLLM(BaseLLM):
                 logger.error("Groq request failed: %s", exc)
                 raise LLMProviderError(f"Groq request failed: {exc}") from exc
 
-        body = response.json()
+        try:
+            body = response.json()
+        except ValueError as exc:
+            logger.error("Groq returned invalid JSON: %s", exc)
+            raise LLMProviderError(
+                "Groq returned an invalid JSON response."
+            ) from exc
+        
         try:
             text = body["choices"][0]["message"]["content"]
         except (KeyError, IndexError) as exc:

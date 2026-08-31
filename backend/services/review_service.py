@@ -1,8 +1,7 @@
-"""Central orchestrator that runs the end-to-end PR review flow.
+"""Central orchestrator that runs the end to end PR review flow.
 
 Kept intentionally thin: it wires together the GitHub service, RAG
-service, specialist agents, and the final validator. See DECISIONS.md,
-decision 015.
+service, specialist agents, and the final validator.
 """
 from __future__ import annotations
 
@@ -18,12 +17,12 @@ from agents.quality_agent import QualityAgent
 from agents.security_agent import SecurityAgent
 from agents.validator_agent import FinalValidatorAgent
 from config.settings import Settings
-from llm.base import BaseLLM
 from models.agent import AgentContext, AgentReview
 from models.review import FinalReview
 from services.github_service import GitHubService
 from services.rag_service import RAGService
 from utils.github_url import parse_pull_request_url
+from llm.factory import get_llm_provider
 
 logger = logging.getLogger(__name__)
 
@@ -36,19 +35,56 @@ class ReviewService:
         settings: Settings,
         github_service: GitHubService,
         rag_service: RAGService,
-        llm: BaseLLM,
     ) -> None:
         self._settings = settings
         self._github = github_service
         self._rag = rag_service
-        self._specialist_agents: list[BaseReviewAgent] = [
-            QualityAgent(llm),
-            SecurityAgent(llm),
-            BugAgent(llm),
-            PerformanceAgent(llm),
-            ArchitectureAgent(llm),
+
+        quality_llm = get_llm_provider(
+            provider=settings.quality_llm_provider,
+            model=settings.quality_llm_model,
+            settings=settings,
+        )
+
+        security_llm = get_llm_provider(
+            provider=settings.security_llm_provider,
+            model=settings.security_llm_model,
+            settings=settings,
+        )
+
+        bug_llm = get_llm_provider(
+            provider=settings.bug_llm_provider,
+            model=settings.bug_llm_model,
+            settings=settings,
+        )
+
+        performance_llm = get_llm_provider(
+            provider=settings.performance_llm_provider,
+            model=settings.performance_llm_model,
+            settings=settings,
+        )
+
+        architecture_llm = get_llm_provider(
+            provider=settings.architecture_llm_provider,
+            model=settings.architecture_llm_model,
+            settings=settings,
+        )
+
+        validator_llm = get_llm_provider(
+            provider=settings.validator_llm_provider,
+            model=settings.validator_llm_model,
+            settings=settings,
+        )
+
+        self._specialist_agents = [
+            QualityAgent(quality_llm),
+            SecurityAgent(security_llm),
+            BugAgent(bug_llm),
+            PerformanceAgent(performance_llm),
+            ArchitectureAgent(architecture_llm),
         ]
-        self._validator = FinalValidatorAgent(llm)
+
+        self._validator = FinalValidatorAgent(validator_llm)
 
     async def review_pull_request(self, pr_url: str) -> FinalReview:
         start_time = time.monotonic()
@@ -59,11 +95,17 @@ class ReviewService:
         logger.info("Fetched PR with %d changed files", len(pull_request.changed_files))
 
         retrieval_result = await self._rag.build_context(pull_request)
-        logger.info("Retrieved %d repository context chunks", len(retrieval_result.chunks))
+
+        logger.info(
+            "Retrieved %d changed-file chunks and %d supporting context chunks",
+            len(retrieval_result.changed_file_chunks),
+            len(retrieval_result.supporting_chunks),
+        )
 
         context = AgentContext(
             pull_request=pull_request,
-            repository_context=retrieval_result.chunks,
+            changed_file_context=retrieval_result.changed_file_chunks,
+            supporting_context=retrieval_result.supporting_chunks,
         )
 
         specialist_reviews = await self._run_specialist_agents(context)

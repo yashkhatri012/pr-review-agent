@@ -21,6 +21,10 @@ class GeminiLLM(BaseLLM):
     def __init__(self, api_key: str, model: str, timeout: float = 60.0) -> None:
         if not api_key:
             raise LLMProviderError("GEMINI_API_KEY is not configured.")
+        if not model:
+            raise LLMProviderError(
+                "LLM_MODEL is not configured for Gemini."
+            )
         self._api_key = api_key
         self._model = model
         self._timeout = timeout
