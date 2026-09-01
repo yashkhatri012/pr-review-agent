@@ -1,6 +1,6 @@
 tree.txt
 flow.txt
-
+data/chroma/**
 DECISIONS.md
 # Byte-compiled / optimized / DLL files
 __pycache__/
