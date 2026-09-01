@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     validator_llm_provider: str = "gemini"
     validator_llm_model: str = ""
 
+    # --- Review Writer --------------------------------------------------------
+
+    review_writer_llm_provider: str = "gemini"
+    review_writer_llm_model: str = ""
+
     # --- Provider API keys ----------------------------------------------------
 
     gemini_api_key: str | None = None

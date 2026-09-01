@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, HttpUrl
 
-from models.review import FinalReview
+from models.client_review import ClientReview
+
 
 
 class ReviewRequest(BaseModel):
@@ -16,7 +17,7 @@ class ReviewResponse(BaseModel):
     """Response body for POST /api/review."""
 
     status: str
-    review: FinalReview
+    review: ClientReview
 
 
 class HealthResponse(BaseModel):
