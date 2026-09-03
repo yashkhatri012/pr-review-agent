@@ -1,4 +1,4 @@
-
+"""Base implementation for specialized pull request review agents."""
 
 
 from __future__ import annotations
@@ -6,7 +6,9 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 
-from llm.base import BaseLLM, LLMProviderError
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import HumanMessage, SystemMessage
+
 from models.agent import AgentContext, AgentReview
 
 logger = logging.getLogger(__name__)
@@ -41,8 +43,8 @@ class BaseReviewAgent(ABC):
 
     agent_name: str
 
-    def __init__(self, llm: BaseLLM) -> None:
-        """Initialize the agent with its injected LLM implementation."""
+    def __init__(self, llm: BaseChatModel) -> None:
+        """Initialize the agent with its configured LangChain chat model."""
 
         self._llm = llm
 
@@ -122,37 +124,43 @@ class BaseReviewAgent(ABC):
     async def review(self, context: AgentContext) -> AgentReview:
         """Run this agent's review.
 
-        Provider failures degrade to an empty finding set so one agent's
-        failure does not sink the entire review.
+        LLM failures or invalid responses degrade to an empty finding set so
+        one specialist failure does not sink the entire pull request review.
         """
 
-        try:
-            result = await self._llm.generate(
-                system_prompt=self.build_system_prompt(),
-                user_prompt=self.build_user_prompt(context),
-                response_model=AgentReview,
-            )
-        except LLMProviderError as exc:
-            logger.error(
-                "%s agent failed: %s",
-                self.agent_name,
-                exc,
-            )
-            return AgentReview(
-                agent_name=self.agent_name,
-                findings=[],
-            )
+        messages = [
+            SystemMessage(content=self.build_system_prompt()),
+            HumanMessage(content=self.build_user_prompt(context)),
+        ]
 
-        if not isinstance(result, AgentReview):
-            logger.error(
-                "%s agent returned an unexpected type: %s",
+        try:
+            response = await self._llm.ainvoke(messages)
+        except Exception:
+            logger.exception(
+                "%s agent failed to invoke the LLM.",
                 self.agent_name,
-                type(result),
             )
-            return AgentReview(
-                agent_name=self.agent_name,
-                findings=[],
+            return self._empty_review()
+
+        if not isinstance(response.content, str):
+            logger.error(
+                "%s agent returned non-text content.",
+                self.agent_name,
             )
+            return self._empty_review()
+
+        try:
+            result = AgentReview.model_validate_json(
+                self._strip_code_fences(response.content)
+            )
+        except Exception:
+            logger.exception(
+                "%s agent returned an invalid structured response.",
+                self.agent_name,
+            )
+            return self._empty_review()
+
+        result.agent_name = self.agent_name
 
         for finding in result.findings:
             if self.agent_name not in finding.source_agents:
@@ -160,3 +168,29 @@ class BaseReviewAgent(ABC):
 
         return result
 
+    def _empty_review(self) -> AgentReview:
+        """Return an empty review for this specialist agent."""
+
+        return AgentReview(
+            agent_name=self.agent_name,
+            findings=[],
+        )
+
+    @staticmethod
+    def _strip_code_fences(text: str) -> str:
+        """Remove optional Markdown code fences from an LLM response."""
+
+        stripped = text.strip()
+
+        if not stripped.startswith("```"):
+            return stripped
+
+        lines = stripped.splitlines()
+
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+
+        return "\n".join(lines).strip()

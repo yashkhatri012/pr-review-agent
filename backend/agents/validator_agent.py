@@ -1,4 +1,3 @@
-
 """Final validator for specialist pull request review findings.
 
 The validator acts as the final quality gate for the review pipeline. It
@@ -11,12 +10,14 @@ from __future__ import annotations
 import json
 import logging
 
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import ValidationError
 
-from llm.base import BaseLLM, LLMProviderError
 from models.agent import AgentContext, AgentReview
 from models.finding import ReviewFinding, Severity
 from models.review import FinalReview, ReviewDecision, ReviewSummary
+
 
 logger = logging.getLogger(__name__)
 
@@ -103,8 +104,8 @@ class FinalValidatorAgent:
 
     agent_name = "final_validator"
 
-    def __init__(self, llm: BaseLLM) -> None:
-        """Initialize the validator with its injected LLM implementation."""
+    def __init__(self, llm: BaseChatModel) -> None:
+        """Initialize the validator with its injected chat model."""
 
         self._llm = llm
 
@@ -175,23 +176,31 @@ class FinalValidatorAgent:
     ) -> FinalReview:
         """Produce the final validated pull request review.
 
-        If the validator provider fails or returns invalid data, the method
+        If the validator model fails or returns invalid data, the method
         falls back to a deterministic merge of specialist findings so the
         review pipeline still returns useful output.
         """
 
-        try:
-            raw = await self._llm.generate(
-                system_prompt=_SYSTEM_PROMPT,
-                user_prompt=self._build_user_prompt(
+        messages = [
+            SystemMessage(content=_SYSTEM_PROMPT),
+            HumanMessage(
+                content=self._build_user_prompt(
                     context,
                     specialist_reviews,
-                ),
-                response_model=None,
-            )
+                )
+            ),
+        ]
+
+        try:
+            response = await self._llm.ainvoke(messages)
+
+            if not isinstance(response.content, str):
+                raise TypeError(
+                    "Validator returned non-text content."
+                )
 
             data = json.loads(
-                _strip_code_fences(raw),
+                _strip_code_fences(response.content),
             )
 
             summary = ReviewSummary.model_validate(
@@ -204,7 +213,6 @@ class FinalValidatorAgent:
             ]
 
         except (
-            LLMProviderError,
             KeyError,
             ValueError,
             ValidationError,
@@ -289,12 +297,14 @@ def _fallback_merge(
         summary_text = (
             "No findings were reported by the specialist review agents."
         )
+
     elif has_serious_finding:
         decision = ReviewDecision.CHANGES_REQUESTED
         summary_text = (
             "The specialist review agents reported findings that should be "
             "addressed before merging. Final LLM validation was unavailable."
         )
+
     else:
         decision = ReviewDecision.APPROVED_WITH_SUGGESTIONS
         summary_text = (
@@ -309,4 +319,3 @@ def _fallback_merge(
     )
 
     return all_findings, summary
-

@@ -1,67 +1,60 @@
-backend/
-├── .env.example
-├── .gitignore
-├── DECISIONS.md
-├── main.py
-├── pyproject.toml
-├── pytest.ini
-├── requirements.txt
-├── uv.lock
-│
-├── agents/
-│   ├── architecture_agent.py
-│   ├── base.py
-│   ├── bug_agent.py
-│   ├── performance_agent.py
-│   ├── quality_agent.py
-│   ├── security_agent.py
-│   ├── validator_agent.py
-│   └── __init__.py
-│
-├── api/
-│   ├── review.py
-│   └── __init__.py
-│
-├── config/
-│   ├── settings.py
-│   └── __init__.py
-│
-├── data/
-│   └── chroma/
-│       └── .gitkeep
-│
-├── llm/
-│   ├── base.py
-│   ├── factory.py
-│   ├── gemini.py
-│   ├── groq.py
-│   ├── mistral.py
-│   ├── openai.py
-│   └── __init__.py
-│
-├── models/
-│   ├── agent.py
-│   ├── api.py
-│   ├── finding.py
-│   ├── pr.py
-│   ├── rag.py
-│   ├── review.py
-│   └── __init__.py
-│
-├── services/
-│   ├── github_service.py
-│   ├── rag_service.py
-│   ├── review_service.py
-│   └── __init__.py
-│
-├── tests/
-│   ├── test_agent_output.py
-│   ├── test_github_url.py
-│   ├── test_llm_factory.py
-│   ├── test_models.py
-│   ├── test_rag_chunking.py
-│   └── __init__.py
-│
-└── utils/
-    ├── github_url.py
-    └── __init__.py
+pr-review-agent/
+└── backend/
+    ├── agents/
+    │   ├── architecture_agent.py
+    │   ├── base.py
+    │   ├── bug_agent.py
+    │   ├── performance_agent.py
+    │   ├── quality_agent.py
+    │   ├── review_writer_agent.py
+    │   ├── security_agent.py
+    │   ├── validator_agent.py
+    │   └── __init__.py
+    │
+    ├── api/
+    │   ├── review.py
+    │   └── __init__.py
+    │
+    ├── config/
+    │   ├── settings.py
+    │   └── __init__.py
+    │
+    ├── data/
+    │   └── chroma/
+    │
+    ├── llm/
+    │   ├── base.py
+    │   ├── factory.py
+    │   ├── gemini.py
+    │   ├── groq.py
+    │   ├── mistral.py
+    │   ├── openai.py
+    │   └── __init__.py
+    │
+    ├── models/
+    │   ├── agent.py
+    │   ├── api.py
+    │   ├── client_review.py
+    │   ├── finding.py
+    │   ├── pr.py
+    │   ├── rag.py
+    │   ├── review.py
+    │   └── __init__.py
+    │
+    ├── services/
+    │   ├── github_service.py
+    │   ├── rag_service.py
+    │   ├── review_service.py
+    │   └── __init__.py
+    │
+    ├── tests/
+    │   ├── test_agent_output.py
+    │   ├── test_github_url.py
+    │   ├── test_llm_factory.py
+    │   ├── test_models.py
+    │   ├── test_rag_chunking.py
+    │   └── __init__.py
+    │
+    └── utils/
+        ├── github_url.py
+        └── __init__.py

@@ -8,11 +8,12 @@ from __future__ import annotations
 
 import logging
 
-from llm.base import BaseLLM, LLMProviderError
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.messages import HumanMessage, SystemMessage
+
 from models.client_review import ClientReview
 from models.pr import PullRequest
 from models.review import FinalReview
-
 logger = logging.getLogger(__name__)
 
 
@@ -66,13 +67,14 @@ STRICT RULES:
 11. Return ONLY the JSON object.
 """
 
-
 class ReviewWriterAgent:
-    """Produces the final client-facing PR review."""
+    """Produce the final client-facing pull request review."""
 
     agent_name = "review_writer"
 
-    def __init__(self, llm: BaseLLM) -> None:
+    def __init__(self, llm: BaseChatModel) -> None:
+        """Initialize the review writer with its injected chat model."""
+
         self._llm = llm
 
     async def write(
@@ -81,23 +83,43 @@ class ReviewWriterAgent:
         review: FinalReview,
     ) -> ClientReview:
         """Convert a validated review into a human-readable client review."""
-        try:
-            result = await self._llm.generate(
-                system_prompt=_SYSTEM_PROMPT,
-                user_prompt=self._build_user_prompt(
+
+        messages = [
+            SystemMessage(content=_SYSTEM_PROMPT),
+            HumanMessage(
+                content=self._build_user_prompt(
                     pull_request,
                     review,
-                ),
-                response_model=ClientReview,
+                )
+            ),
+        ]
+
+        try:
+            response = await self._llm.ainvoke(messages)
+        except Exception as exc:
+            logger.error(
+                "Review writer failed to invoke the LLM: %s",
+                exc,
             )
-        except LLMProviderError as exc:
-            logger.error("Review writer failed: %s", exc)
             raise
 
-        if not isinstance(result, ClientReview):
-            raise LLMProviderError(
-                f"Review writer returned unexpected type: {type(result)}"
+        if not isinstance(response.content, str):
+            raise TypeError(
+                "Review writer returned non-text content."
             )
+
+        try:
+            result = ClientReview.model_validate_json(
+                response.content,
+            )
+        except Exception as exc:
+            logger.error(
+                "Review writer returned invalid structured output: %s",
+                exc,
+            )
+            raise ValueError(
+                "Review writer returned an invalid response."
+            ) from exc
 
         return result
 
@@ -107,12 +129,13 @@ class ReviewWriterAgent:
         review: FinalReview,
     ) -> str:
         """Build the input containing only trusted review information."""
+
         return (
             f"Pull Request: {pull_request.title}\n"
             f"Description: {pull_request.description or '(no description)'}\n"
             f"Author: {pull_request.author}\n"
             f"Base branch: {pull_request.base_branch}\n"
             f"Head branch: {pull_request.head_branch}\n\n"
-            f"## Validated review\n"
+            "## Validated Review\n"
             f"{review.model_dump_json(indent=2)}"
         )
