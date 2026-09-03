@@ -1,13 +1,23 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+
+import { ReviewHeader } from "@/components/review/ReviewHeader";
+import { ReviewStats } from "@/components/review/ReviewStats";
+import { KeyPoints } from "@/components/review/KeyPoints";
+import { FindingsList } from "@/components/review/FindingsList";
 
 function App() {
   const [prUrl, setPrUrl] = useState("");
   const [loading, setLoading] = useState(false);
-  const [review, setReview] = useState(null);
+  const [review, setReview] = useState<any>(null);
   const [error, setError] = useState("");
 
   const handleReview = async () => {
@@ -21,25 +31,34 @@ function App() {
     setReview(null);
 
     try {
-      const response = await fetch("http://localhost:8000/api/review", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        "http://localhost:8000/api/review",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            pr_url: prUrl.trim(),
+          }),
         },
-        body: JSON.stringify({
-          pr_url: prUrl.trim(),
-        }),
-      });
+      );
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.detail || "Failed to review pull request.");
+        throw new Error(
+          data.detail || "Failed to review pull request.",
+        );
       }
 
       setReview(data.review);
     } catch (err) {
-      setError(err.message || "Something went wrong.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong.",
+      );
     } finally {
       setLoading(false);
     }
@@ -47,32 +66,37 @@ function App() {
 
   return (
     <main className="min-h-screen bg-background">
-      <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-6 py-12">
-        <header className="mb-12">
-          <p className="mb-3 text-sm font-medium text-muted-foreground">
+      <div className="mx-auto max-w-5xl px-6 py-12">
+
+        {/* Header */}
+        <header className="mb-10">
+          <p className="text-sm font-medium text-muted-foreground">
             AI CODE REVIEW
           </p>
 
-          <h1 className="text-4xl font-bold tracking-tight">
+          <h1 className="mt-2 text-4xl font-bold tracking-tight">
             Pull Request Reviewer
           </h1>
 
           <p className="mt-3 max-w-2xl text-muted-foreground">
-            Analyze GitHub pull requests using specialized AI agents for
-            quality, security, bugs, and performance.
+            Analyze GitHub pull requests using specialized AI
+            agents for quality, security, bugs, and performance.
           </p>
         </header>
 
+        {/* Review form */}
         <Card>
           <CardHeader>
             <CardTitle>Review a pull request</CardTitle>
           </CardHeader>
 
           <CardContent>
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <Input
                 value={prUrl}
-                onChange={(event) => setPrUrl(event.target.value)}
+                onChange={(event) =>
+                  setPrUrl(event.target.value)
+                }
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     handleReview();
@@ -82,7 +106,11 @@ function App() {
                 disabled={loading}
               />
 
-              <Button onClick={handleReview} disabled={loading}>
+              <Button
+                onClick={handleReview}
+                disabled={loading}
+                className="sm:w-32"
+              >
                 {loading ? "Reviewing..." : "Review PR"}
               </Button>
             </div>
@@ -95,19 +123,28 @@ function App() {
           </CardContent>
         </Card>
 
+        {/* Results */}
         {review && (
-          <div className="mt-8">
-            <Card>
-              <CardHeader>
-                <CardTitle>Review Result</CardTitle>
-              </CardHeader>
+          <div className="mt-8 space-y-6">
 
-              <CardContent>
-                <pre className="overflow-auto text-sm">
-                  {JSON.stringify(review, null, 2)}
-                </pre>
-              </CardContent>
-            </Card>
+            <ReviewHeader
+              decision={review.summary.decision}
+              overview={review.summary.overview}
+            />
+
+            <ReviewStats
+              total={review.summary.total_findings}
+              findings={review.code_review}
+            />
+
+            <KeyPoints
+              points={review.summary.key_points}
+            />
+
+            <FindingsList
+              findings={review.code_review}
+            />
+
           </div>
         )}
       </div>

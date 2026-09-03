@@ -8,6 +8,9 @@ from fastapi import FastAPI
 from api.review import router as review_router
 from config.settings import get_settings
 
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 
 def configure_logging() -> None:
     settings = get_settings()
@@ -27,6 +30,13 @@ def create_app() -> FastAPI:
         version="0.1.0",
     )
     app.include_router(review_router)
+    app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    )
     return app
 
 
