@@ -1,33 +1,72 @@
-import { useState } from "react";
-import { Moon, Sun } from "lucide-react";
-import { useTheme } from "@/hooks/use-theme";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { useRef, useState } from "react";
 
-import { ReviewHeader } from "@/components/review/ReviewHeader";
-import { ReviewStats } from "@/components/review/ReviewStats";
-import { KeyPoints } from "@/components/review/KeyPoints";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Moon, Sun } from "lucide-react";
+
+import { useTheme } from "@/hooks/use-theme";
+
 import { FindingsList } from "@/components/review/FindingsList";
+import { KeyPoints } from "@/components/review/KeyPoints";
+import { ReviewHeader } from "@/components/review/ReviewHeader";
+import {
+  ReviewProgress,
+  type ReviewProgressState,
+} from "@/components/review/ReviewProgress";
+import { ReviewStats } from "@/components/review/ReviewStats";
+
+interface ReviewResponse {
+  summary: {
+    decision: string;
+    overview: string;
+    key_points: {
+      text: string;
+    }[];
+    total_findings: number;
+  };
+  code_review: {
+    severity: string;
+    file: string;
+    line: number;
+    title: string;
+    review_comment: string;
+    why_it_matters: string;
+    suggested_fix: string;
+  }[];
+}
+
+interface StartReviewResponse {
+  review_id: string;
+}
 
 function App() {
   const [prUrl, setPrUrl] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [review, setReview] = useState<any>(null);
-  const [error, setError] = useState("");
+  const [review, setReview] = useState<ReviewResponse | null>(null);
+  const [progress, setProgress] = useState<ReviewProgressState>({});
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const eventSourceRef = useRef<EventSource | null>(null);
   const { theme, toggleTheme } = useTheme();
-  const handleReview = async () => {
+  const startReview = async () => {
     if (!prUrl.trim()) {
-      setError("Enter a GitHub pull request URL.");
+      setError("Please enter a pull request URL.");
       return;
     }
 
-    setLoading(true);
-    setError("");
+    // Reset previous state.
     setReview(null);
+    setProgress({});
+    setError(null);
+    setIsReviewing(true);
+
+    // Close any previous SSE connection.
+    eventSourceRef.current?.close();
 
     try {
-      const response = await fetch("http://localhost:8000/api/review", {
+      const response = await fetch("http://localhost:8000/api/review/start", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -37,37 +76,113 @@ function App() {
         }),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.detail || "Failed to review pull request.");
+        throw new Error("Failed to start pull request review.");
       }
 
-      setReview(data.review);
+      const data: StartReviewResponse = await response.json();
+
+      connectToProgressStream(data.review_id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setLoading(false);
+      setIsReviewing(false);
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to start pull request review.",
+      );
     }
   };
 
-  return (
-    <main className="min-h-screen bg-background">
-      <div className="mx-auto max-w-5xl px-6 py-12">
-        {/* Header */}
-        <header className="mb-10 flex items-start justify-between">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground">
-              AI CODE REVIEW
-            </p>
+  const connectToProgressStream = (reviewId: string) => {
+    const eventSource = new EventSource(
+      `http://localhost:8000/api/review/${reviewId}/events`,
+    );
 
-            <h1 className="mt-2 text-4xl font-bold tracking-tight">
-              Pull Request Reviewer
+    eventSourceRef.current = eventSource;
+
+    eventSource.addEventListener("progress", (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        setProgress((previous) => ({
+          ...previous,
+          [data.stage]: {
+            status: data.status,
+            message: data.message,
+          },
+        }));
+      } catch {
+        setError("Received an invalid progress update.");
+      }
+    });
+
+    eventSource.addEventListener("completed", (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        setReview(data.review);
+        setIsReviewing(false);
+
+        eventSource.close();
+        eventSourceRef.current = null;
+      } catch {
+        setIsReviewing(false);
+        setError("The review completed, but the response was invalid.");
+
+        eventSource.close();
+        eventSourceRef.current = null;
+      }
+    });
+
+    eventSource.addEventListener("error", (event) => {
+      /*
+       * The backend sends an SSE event named "error".
+       *
+       * Native EventSource also has an `onerror` mechanism for
+       * connection failures, so we handle the named event separately
+       * below through the event listener.
+       */
+      if (event instanceof MessageEvent) {
+        try {
+          const data = JSON.parse(event.data);
+
+          setError(data.message || "The pull request review failed.");
+        } catch {
+          setError("The pull request review failed.");
+        }
+
+        setIsReviewing(false);
+        eventSource.close();
+        eventSourceRef.current = null;
+      }
+    });
+
+    eventSource.onerror = () => {
+      /*
+       * EventSource automatically attempts to reconnect when the
+       * connection drops. We don't want that after the review has
+       * already failed or completed.
+       */
+      if (eventSource.readyState === EventSource.CLOSED) {
+        setIsReviewing(false);
+      }
+    };
+  };
+
+  return (
+    <main className="min-h-screen bg-background px-6 py-10 text-foreground">
+      <div className="mx-auto max-w-5xl space-y-8">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">
+              AI Pull Request Review
             </h1>
 
-            <p className="mt-3 max-w-2xl text-muted-foreground">
-              Analyze GitHub pull requests using specialized AI agents for
-              quality, security, bugs, and performance.
+            <p className="mt-2 text-muted-foreground">
+              Analyze a GitHub pull request using multiple specialized AI
+              agents.
             </p>
           </div>
 
@@ -78,49 +193,50 @@ function App() {
             aria-label="Toggle theme"
           >
             {theme === "dark" ? (
-              <Sun className="size-4" />
+              <Sun className="h-4 w-4" />
             ) : (
-              <Moon className="size-4" />
+              <Moon className="h-4 w-4" />
             )}
           </Button>
-        </header>
+        </div>
 
-        {/* Review form */}
+        {/* PR input */}
         <Card>
-          <CardHeader>
-            <CardTitle>Review a pull request</CardTitle>
-          </CardHeader>
+          <CardContent className="flex gap-3 p-6">
+            <Input
+              value={prUrl}
+              onChange={(event) => setPrUrl(event.target.value)}
+              placeholder="https://github.com/owner/repository/pull/42"
+              disabled={isReviewing}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !isReviewing) {
+                  startReview();
+                }
+              }}
+            />
 
-          <CardContent>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Input
-                value={prUrl}
-                onChange={(event) => setPrUrl(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    handleReview();
-                  }
-                }}
-                placeholder="https://github.com/owner/repository/pull/42"
-                disabled={loading}
-              />
-
-              <Button
-                onClick={handleReview}
-                disabled={loading}
-                className="sm:w-32"
-              >
-                {loading ? "Reviewing..." : "Review PR"}
-              </Button>
-            </div>
-
-            {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
+            <Button
+              onClick={startReview}
+              disabled={isReviewing || !prUrl.trim()}
+            >
+              {isReviewing ? "Reviewing..." : "Review PR"}
+            </Button>
           </CardContent>
         </Card>
 
-        {/* Results */}
-        {review && (
-          <div className="mt-8 space-y-6">
+        {/* Error */}
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Live progress */}
+        {isReviewing && <ReviewProgress progress={progress} />}
+
+        {/* Final review */}
+        {review && !isReviewing && (
+          <div className="space-y-6">
             <ReviewHeader
               decision={review.summary.decision}
               overview={review.summary.overview}

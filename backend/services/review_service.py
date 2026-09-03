@@ -1,12 +1,10 @@
-"""Central orchestrator that runs the end to end PR review flow.
-
-"""
+"""Central orchestrator that runs the end to end PR review flow."""
 
 from __future__ import annotations
 
-
 import logging
 import time
+
 from agents.bug_agent import BugAgent
 from agents.performance_agent import PerformanceAgent
 from agents.quality_agent import QualityAgent
@@ -15,6 +13,7 @@ from agents.security_agent import SecurityAgent
 from agents.validator_agent import FinalValidatorAgent
 from config.settings import Settings
 from graph.review_graph import ReviewGraph
+from graph.state import ProgressCallback
 from llm.service import LLMService
 from models.agent import AgentContext
 from models.client_review import ClientReview
@@ -42,29 +41,30 @@ class ReviewService:
         self._rag = rag_service
 
         self._review_graph = ReviewGraph(
-        quality_agent=QualityAgent(
-            llm_service.get_llm_for_agent("quality")
-        ),
-        security_agent=SecurityAgent(
-            llm_service.get_llm_for_agent("security")
-        ),
-        bug_agent=BugAgent(
-            llm_service.get_llm_for_agent("bug")
-        ),
-        performance_agent=PerformanceAgent(
-            llm_service.get_llm_for_agent("performance")
-        ),
-        validator=FinalValidatorAgent(
-            llm_service.get_llm_for_agent("validator")
-        ),
-        review_writer=ReviewWriterAgent(
-            llm_service.get_llm_for_agent("review_writer")
-        ),
-    )
+            quality_agent=QualityAgent(
+                llm_service.get_llm_for_agent("quality")
+            ),
+            security_agent=SecurityAgent(
+                llm_service.get_llm_for_agent("security")
+            ),
+            bug_agent=BugAgent(
+                llm_service.get_llm_for_agent("bug")
+            ),
+            performance_agent=PerformanceAgent(
+                llm_service.get_llm_for_agent("performance")
+            ),
+            validator=FinalValidatorAgent(
+                llm_service.get_llm_for_agent("validator")
+            ),
+            review_writer=ReviewWriterAgent(
+                llm_service.get_llm_for_agent("review_writer")
+            ),
+        )
 
     async def review_pull_request(
         self,
         pr_url: str,
+        progress_callback: ProgressCallback | None = None,
     ) -> ClientReview:
         """Run the complete pull request review pipeline."""
 
@@ -79,6 +79,13 @@ class ReviewService:
             reference.number,
         )
 
+        if progress_callback is not None:
+            await progress_callback(
+                "fetching_pr",
+                "running",
+                "Fetching pull request information from GitHub...",
+            )
+
         pull_request = await self._github.fetch_pull_request(
             reference
         )
@@ -87,6 +94,22 @@ class ReviewService:
             "Fetched PR with %d changed files",
             len(pull_request.changed_files),
         )
+
+        if progress_callback is not None:
+            await progress_callback(
+                "fetching_pr",
+                "completed",
+                (
+                    f"Fetched pull request with "
+                    f"{len(pull_request.changed_files)} changed files."
+                ),
+            )
+
+            await progress_callback(
+                "building_context",
+                "running",
+                "Building repository context with RAG...",
+            )
 
         retrieval_result = await self._rag.build_context(
             pull_request
@@ -99,6 +122,18 @@ class ReviewService:
             len(retrieval_result.supporting_chunks),
         )
 
+        if progress_callback is not None:
+            await progress_callback(
+                "building_context",
+                "completed",
+                (
+                    f"Retrieved {len(retrieval_result.changed_file_chunks)} "
+                    f"changed-file chunks and "
+                    f"{len(retrieval_result.supporting_chunks)} "
+                    f"supporting context chunks."
+                ),
+            )
+
         context = AgentContext(
             pull_request=pull_request,
             changed_file_context=retrieval_result.changed_file_chunks,
@@ -106,7 +141,8 @@ class ReviewService:
         )
 
         graph_result = await self._review_graph.run(
-            context
+            context,
+            progress_callback=progress_callback,
         )
 
         client_review = graph_result["client_review"]
@@ -122,5 +158,12 @@ class ReviewService:
             duration,
             len(client_review.code_review),
         )
+
+        if progress_callback is not None:
+            await progress_callback(
+                "completed",
+                "completed",
+                "Pull request review completed.",
+            )
 
         return client_review
