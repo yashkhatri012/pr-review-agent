@@ -45,7 +45,7 @@ class ReviewGraph:
 
         builder = StateGraph(ReviewGraphState)
 
-        # Specialist nodes.
+        #  nodes
         builder.add_node(
             "quality_review",
             self._run_quality_agent,
@@ -73,7 +73,7 @@ class ReviewGraph:
             self._write_review,
         )
 
-        # Fan out from START.
+       
         builder.add_edge(
             START,
             "quality_review",
@@ -91,7 +91,7 @@ class ReviewGraph:
             "performance_review",
         )
 
-        # Fan in to the validator.
+       
         builder.add_edge(
             "quality_review",
             "validate_review",
