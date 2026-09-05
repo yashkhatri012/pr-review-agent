@@ -135,38 +135,33 @@ function App() {
       }
     });
 
-    eventSource.addEventListener("error", (event) => {
-      /*
-       * The backend sends an SSE event named "error".
-       *
-       * Native EventSource also has an `onerror` mechanism for
-       * connection failures, so we handle the named event separately
-       * below through the event listener.
-       */
-      if (event instanceof MessageEvent) {
-        try {
-          const data = JSON.parse(event.data);
+    // This handles the custom SSE event:
+    // event: error
+    eventSource.addEventListener("review_error", (event) => {
+  try {
+    const data = JSON.parse(event.data);
+    setError(data.message || "The pull request review failed.");
+  } catch {
+    setError("The pull request review failed.");
+  }
 
-          setError(data.message || "The pull request review failed.");
-        } catch {
-          setError("The pull request review failed.");
-        }
-
-        setIsReviewing(false);
-        eventSource.close();
-        eventSourceRef.current = null;
-      }
-    });
-
+  setIsReviewing(false);
+  eventSource.close();
+  eventSourceRef.current = null;
+});
+    // This handles an actual SSE connection failure.
     eventSource.onerror = () => {
-      /*
-       * EventSource automatically attempts to reconnect when the
-       * connection drops. We don't want that after the review has
-       * already failed or completed.
-       */
       if (eventSource.readyState === EventSource.CLOSED) {
         setIsReviewing(false);
+        eventSourceRef.current = null;
+        return;
       }
+
+      setError("Lost connection to the review server.");
+      setIsReviewing(false);
+
+      eventSource.close();
+      eventSourceRef.current = null;
     };
   };
 

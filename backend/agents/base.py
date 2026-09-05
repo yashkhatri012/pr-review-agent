@@ -1,5 +1,4 @@
-"""Base implementation for specialized pull request review agents"""
-
+"""Base implementation for specialized pull request review agents."""
 
 from __future__ import annotations
 
@@ -12,6 +11,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from models.agent import AgentContext, AgentReview
 
 logger = logging.getLogger(__name__)
+
 
 _OUTPUT_FORMAT_INSTRUCTIONS = """
 Respond with ONLY a JSON object matching this exact schema, and nothing else
@@ -39,32 +39,31 @@ If you find no meaningful issues in your area of focus, return an empty
 
 
 class BaseReviewAgent(ABC):
-    """Common behavior for a specialized PR review agent"""
+    """Common behavior for specialized pull request review agents."""
 
     agent_name: str
 
     def __init__(self, llm: BaseChatModel) -> None:
-        """Initialize the agent with its configured LangChain chat model"""
+        """Initialize the agent with its configured LangChain chat model."""
 
         self._llm = llm
-        
 
     @property
     @abstractmethod
     def focus_description(self) -> str:
-        """Return a short description of the agent's review focus"""
+        """Return a short description of the agent's review focus."""
 
         raise NotImplementedError
-    
+
     @property
     @abstractmethod
     def retrieval_query(self) -> str:
         """Return the semantic query used to retrieve supporting context."""
 
         raise NotImplementedError
-    
+
     def build_system_prompt(self) -> str:
-        """Build the system prompt defining the agent's review responsibility"""
+        """Build the system prompt defining the agent's review responsibility."""
 
         return (
             f"You are the {self.agent_name} agent, a specialized senior software "
@@ -73,19 +72,19 @@ class BaseReviewAgent(ABC):
             "Only report issues you are reasonably confident about and that are "
             "supported by the code shown to you. Do not report generic style "
             "preferences or speculative concerns outside your focus area.\n\n"
-            "The pull request diffs and changed-file context are the primary "
-            "review targets. Supporting repository context may be used to "
-            "understand dependencies, behavior, and architecture, but do not "
-            "report pre-existing issues in unchanged supporting files unless "
-            "the pull request directly introduces or causes the problem.\n"
+            "The pull request diff is the primary review target. Supporting "
+            "repository context may be used to understand dependencies, behavior, "
+            "and architecture, but do not report pre-existing issues in unchanged "
+            "supporting files unless the pull request directly introduces or "
+            "causes the problem.\n\n"
             + _OUTPUT_FORMAT_INSTRUCTIONS
         )
 
-    
-
-
-    def build_user_prompt(self, context: AgentContext) -> str:
-        """Build the pull request and repository context for this agent"""
+    def build_user_prompt(
+        self,
+        context: AgentContext,
+    ) -> str:
+        """Build the pull request and agent-specific repository context."""
 
         pr = context.pull_request
 
@@ -95,13 +94,6 @@ class BaseReviewAgent(ABC):
             f"+{changed_file.additions}/-{changed_file.deletions})\n"
             f"{changed_file.patch or '(no patch available)'}"
             for changed_file in pr.changed_files
-        )
-
-        changed_file_sections = "\n\n".join(
-            f"### Changed file: {chunk.file_path} "
-            f"(chunk {chunk.chunk_index})\n"
-            f"{chunk.content}"
-            for chunk in context.changed_file_context
         )
 
         supporting_sections = "\n\n".join(
@@ -118,27 +110,26 @@ class BaseReviewAgent(ABC):
             f"Base branch: {pr.base_branch} <- "
             f"Head branch: {pr.head_branch}\n\n"
             "## Pull Request Diffs\n"
-            "These are the actual changes introduced by the pull request.\n\n"
+            "These are the actual changes introduced by the pull request. "
+            "Review these changes as the primary source of evidence.\n\n"
             f"{diff_sections or '(no changed files)'}\n\n"
-            "## Full Changed-File Context\n"
-            "These are full contents of files modified by the pull request. "
-            "They are the primary code-review target.\n\n"
-            f"{changed_file_sections or '(no changed-file context available)'}\n\n"
             "## Supporting Repository Context\n"
-            "These chunks come from related repository files that may not have "
-            "been modified by this pull request. Use them to understand "
-            "dependencies and behavior. Do not report unrelated pre-existing "
-            "issues in this supporting code.\n\n"
+            "These chunks were retrieved specifically for your area of review. "
+            "Use them to understand dependencies, behavior, architecture, and "
+            "surrounding implementation patterns.\n\n"
             f"{supporting_sections or '(no supporting context retrieved)'}\n"
         )
 
-    async def review(self, context: AgentContext) -> AgentReview:
-        """Run this agent's review
+    async def review(
+        self,
+        context: AgentContext,
+    ) -> AgentReview:
+        """Run this agent's review.
 
         LLM failures or invalid responses degrade to an empty finding set so
-        one specialist failure does not sink the entire pull request review
+        one specialist failure does not sink the entire pull request review.
         """
-        
+
         messages = [
             SystemMessage(content=self.build_system_prompt()),
             HumanMessage(content=self.build_user_prompt(context)),
@@ -166,7 +157,7 @@ class BaseReviewAgent(ABC):
             )
         except Exception:
             logger.exception(
-                "%s agent returned an invalid structured response",
+                "%s agent returned an invalid structured response.",
                 self.agent_name,
             )
             return self._empty_review()
@@ -180,7 +171,7 @@ class BaseReviewAgent(ABC):
         return result
 
     def _empty_review(self) -> AgentReview:
-        """Return an empty review for this specialist agent"""
+        """Return an empty review for this specialist agent."""
 
         return AgentReview(
             agent_name=self.agent_name,
@@ -189,7 +180,7 @@ class BaseReviewAgent(ABC):
 
     @staticmethod
     def _strip_code_fences(text: str) -> str:
-        """Remove optional Markdown code fences from an LLM response"""
+        """Remove optional Markdown code fences from an LLM response."""
 
         stripped = text.strip()
 

@@ -1,9 +1,10 @@
-"""Central orchestrator that runs the end to end PR review flow."""
+"""Central orchestrator that runs the end-to-end PR review flow."""
 
 from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Awaitable, Callable
 
 from agents.bug_agent import BugAgent
 from agents.performance_agent import PerformanceAgent
@@ -13,7 +14,6 @@ from agents.security_agent import SecurityAgent
 from agents.validator_agent import FinalValidatorAgent
 from config.settings import Settings
 from graph.review_graph import ReviewGraph
-from graph.state import ProgressCallback
 from llm.service import LLMService
 from models.agent import AgentContext
 from models.client_review import ClientReview
@@ -24,8 +24,14 @@ from utils.github_url import parse_pull_request_url
 logger = logging.getLogger(__name__)
 
 
+ProgressCallback = Callable[
+    [str, str, str],
+    Awaitable[None],
+]
+
+
 class ReviewService:
-    """Prepare pull request context and execute the review graph"""
+    """Prepare pull request context and execute the review graph."""
 
     def __init__(
         self,
@@ -34,7 +40,7 @@ class ReviewService:
         rag_service: RAGService,
         llm_service: LLMService,
     ) -> None:
-        """Initialize the services and agents used by the review pipeline"""
+        """Initialize the services and agents used by the review pipeline."""
 
         self._settings = settings
         self._github = github_service
@@ -56,17 +62,21 @@ class ReviewService:
             llm_service.get_llm_for_agent("performance")
         )
 
+        self._validator = FinalValidatorAgent(
+            llm_service.get_llm_for_agent("validator")
+        )
+
+        self._review_writer = ReviewWriterAgent(
+            llm_service.get_llm_for_agent("review_writer")
+        )
+
         self._review_graph = ReviewGraph(
             quality_agent=self._quality_agent,
             security_agent=self._security_agent,
             bug_agent=self._bug_agent,
             performance_agent=self._performance_agent,
-            validator=FinalValidatorAgent(
-                llm_service.get_llm_for_agent("validator")
-            ),
-            review_writer=ReviewWriterAgent(
-                llm_service.get_llm_for_agent("review_writer")
-            ),
+            validator=self._validator,
+            review_writer=self._review_writer,
         )
 
     async def review_pull_request(
@@ -74,7 +84,7 @@ class ReviewService:
         pr_url: str,
         progress_callback: ProgressCallback | None = None,
     ) -> ClientReview:
-        """Run the complete pull request review pipeline"""
+        """Run the complete pull request review pipeline."""
 
         start_time = time.monotonic()
 
@@ -87,13 +97,6 @@ class ReviewService:
             reference.number,
         )
 
-        if progress_callback is not None:
-            await progress_callback(
-                "fetching_pr",
-                "running",
-                "Fetching pull request information from GitHub...",
-            )
-
         pull_request = await self._github.fetch_pull_request(
             reference
         )
@@ -103,28 +106,37 @@ class ReviewService:
             len(pull_request.changed_files),
         )
 
-        if progress_callback is not None:
-            await progress_callback(
-                "fetching_pr",
-                "completed",
-                (
-                    f"Fetched pull request with "
-                    f"{len(pull_request.changed_files)} changed files."
-                ),
-            )
+        await self._emit_progress(
+            progress_callback,
+            "fetch_pull_request",
+            "completed",
+            (
+                f"Fetched pull request with "
+                f"{len(pull_request.changed_files)} changed files."
+            ),
+        )
 
-            await progress_callback(
-                "building_context",
-                "running",
-                "Building repository context with RAG...",
-            )
-
+        # Each specialist gets its own semantic retrieval query.
         agent_queries = {
-            "quality": self._quality_agent.retrieval_query,
-            "security": self._security_agent.retrieval_query,
-            "bug": self._bug_agent.retrieval_query,
-            "performance": self._performance_agent.retrieval_query,
+            self._quality_agent.agent_name:
+                self._quality_agent.retrieval_query,
+
+            self._security_agent.agent_name:
+                self._security_agent.retrieval_query,
+
+            self._bug_agent.agent_name:
+                self._bug_agent.retrieval_query,
+
+            self._performance_agent.agent_name:
+                self._performance_agent.retrieval_query,
         }
+
+        await self._emit_progress(
+            progress_callback,
+            "repository_context",
+            "running",
+            "Retrieving relevant repository context...",
+        )
 
         retrieval_result = await self._rag.build_context(
             pull_request,
@@ -138,41 +150,73 @@ class ReviewService:
 
         logger.info(
             "Retrieved %d changed-file chunks and "
-            "%d supporting context chunks",
+            "%d agent-specific supporting chunks",
             len(retrieval_result.changed_file_chunks),
             supporting_chunk_count,
         )
 
-        if progress_callback is not None:
-            await progress_callback(
-                "building_context",
-                "completed",
-                (
-                    f"Retrieved "
-                    f"{len(retrieval_result.changed_file_chunks)} "
-                    f"changed-file chunks and "
-                    f"{supporting_chunk_count} "
-                    f"supporting context chunks."
-                ),
-            )
+        await self._emit_progress(
+            progress_callback,
+            "repository_context",
+            "completed",
+            (
+                f"Retrieved {supporting_chunk_count} supporting "
+                "repository chunks."
+            ),
+        )
 
+        # Common context is kept for the validator and writer.
+        #
+        # The validator still needs the changed-file context because its
+        # responsibility is to verify specialist findings against the code.
         base_context = AgentContext(
             pull_request=pull_request,
             changed_file_context=retrieval_result.changed_file_chunks,
             supporting_context=[],
         )
 
+        # Each specialist receives only its own supporting RAG results.
         agent_contexts = {
-            agent_name: AgentContext(
+            "quality": AgentContext(
                 pull_request=pull_request,
                 changed_file_context=retrieval_result.changed_file_chunks,
                 supporting_context=retrieval_result.supporting_chunks.get(
-                    agent_name,
+                    "quality",
                     [],
                 ),
-            )
-            for agent_name in agent_queries
+            ),
+            "security": AgentContext(
+                pull_request=pull_request,
+                changed_file_context=retrieval_result.changed_file_chunks,
+                supporting_context=retrieval_result.supporting_chunks.get(
+                    "security",
+                    [],
+                ),
+            ),
+            "bug": AgentContext(
+                pull_request=pull_request,
+                changed_file_context=retrieval_result.changed_file_chunks,
+                supporting_context=retrieval_result.supporting_chunks.get(
+                    "bug",
+                    [],
+                ),
+            ),
+            "performance": AgentContext(
+                pull_request=pull_request,
+                changed_file_context=retrieval_result.changed_file_chunks,
+                supporting_context=retrieval_result.supporting_chunks.get(
+                    "performance",
+                    [],
+                ),
+            ),
         }
+
+        await self._emit_progress(
+            progress_callback,
+            "specialist_reviews",
+            "running",
+            "Running specialist review agents in parallel...",
+        )
 
         graph_result = await self._review_graph.run(
             context=base_context,
@@ -194,11 +238,22 @@ class ReviewService:
             len(client_review.code_review),
         )
 
-        if progress_callback is not None:
-            await progress_callback(
-                "completed",
-                "completed",
-                "Pull request review completed.",
-            )
-
         return client_review
+
+    @staticmethod
+    async def _emit_progress(
+        callback: ProgressCallback | None,
+        stage: str,
+        status: str,
+        message: str,
+    ) -> None:
+        """Emit a progress event when a callback is configured"""
+
+        if callback is None:
+            return
+
+        await callback(
+            stage,
+            status,
+            message,
+        )

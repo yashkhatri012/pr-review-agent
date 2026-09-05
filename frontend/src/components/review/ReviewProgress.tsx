@@ -19,12 +19,12 @@ interface ReviewProgressProps {
 
 const stages = [
   {
-    id: "fetching_pr",
+    id: "fetch_pull_request",
     title: "Fetching Pull Request",
     description: "Retrieving pull request and repository information",
   },
   {
-    id: "building_context",
+    id: "repository_context",
     title: "Building Repository Context",
     description: "Preparing relevant code and documentation context",
   },

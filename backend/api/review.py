@@ -194,7 +194,6 @@ async def start_review(
         "review_id": job.review_id,
     }
 
-
 @router.get("/review/{review_id}/events")
 async def review_events(
     review_id: str,
@@ -214,7 +213,6 @@ async def review_events(
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
     )
