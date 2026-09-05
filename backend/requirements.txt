@@ -12,4 +12,5 @@ langgraph
 langchain_openai
 langchain_mistralai
 langchain_google_genai
+langchain-ollama
 langsmith

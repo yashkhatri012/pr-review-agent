@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from xml.parsers.expat import model
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_mistralai import ChatMistralAI
 from langchain_openai import ChatOpenAI
-
+from langchain_ollama import ChatOllama
 from config.settings import Settings
 
 @dataclass(frozen=True)
@@ -53,6 +54,8 @@ class LLMRegistry:
 
             case "mistral":
                 return self._create_mistral(model)
+            case "ollama":
+                return self._create_ollama(model)
 
             case _:
                 raise ValueError(
@@ -111,7 +114,15 @@ class LLMRegistry:
                 "MISTRAL_API_KEY",
             ),
         )
-
+    def _create_ollama(
+        self,
+        model: str,
+    ) -> BaseChatModel:
+        """Create a local Ollama chat model."""
+        return ChatOllama(
+            model=model,
+            base_url="http://localhost:11434",
+        )
     @staticmethod # Static, no agent state is required
     def _require_api_key(
         api_key: str | None,
