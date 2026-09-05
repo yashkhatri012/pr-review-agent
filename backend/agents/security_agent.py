@@ -21,7 +21,7 @@ class SecurityAgent(BaseReviewAgent):
         )
     @property
     def context_keywords(self) -> set[str]:
-        """Return keywords for retrieving security-related repository context."""
+        """Return keywords for retrieving security-related repository context """
 
         return {
             "auth",
@@ -55,3 +55,13 @@ class SecurityAgent(BaseReviewAgent):
             "security",
             "api",
         }
+    @property
+    def retrieval_query(self) -> str:
+        """Return the semantic query used to retrieve security related context"""
+
+        return (
+            "Find repository code relevant to detecting security vulnerabilities "
+            "introduced by this pull request, including authentication, "
+            "authorization, permissions, secrets, input handling, validation, "
+            "injection, sensitive data, sessions, tokens, and unsafe APIs."
+        )

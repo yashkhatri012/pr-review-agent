@@ -1,4 +1,4 @@
-"""LangGraph orchestration for the pull request review pipeline"""
+"""LangGraph orchestration for the pull request review pipeline."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class ReviewGraph:
-    """Coordinate the parallel specialist and final review stages"""
+    """Coordinate the parallel specialist and final review stages."""
 
     def __init__(
         self,
@@ -33,7 +33,7 @@ class ReviewGraph:
         validator: FinalValidatorAgent,
         review_writer: ReviewWriterAgent,
     ) -> None:
-        """Initialize the agents used by the review graph"""
+        """Initialize the agents used by the review graph."""
 
         self._quality_agent = quality_agent
         self._security_agent = security_agent
@@ -45,7 +45,7 @@ class ReviewGraph:
         self._graph = self._build_graph()
 
     def _build_graph(self) -> Any:
-        """Build and compile the pull request review graph"""
+        """Build and compile the pull request review graph."""
 
         builder = StateGraph(ReviewGraphState)
 
@@ -139,12 +139,14 @@ class ReviewGraph:
     async def run(
         self,
         context: AgentContext,
+        agent_contexts: dict[str, AgentContext],
         progress_callback: ProgressCallback | None = None,
     ) -> ReviewGraphState:
-        """Execute the pull request review graph"""
+        """Execute the pull request review graph."""
 
         initial_state: ReviewGraphState = {
             "context": context,
+            "agent_contexts": agent_contexts,
             "specialist_reviews": [],
         }
 
@@ -177,7 +179,7 @@ class ReviewGraph:
         self,
         state: ReviewGraphState,
     ) -> dict[str, list[AgentReview]]:
-        """Run the quality specialist agent"""
+        """Run the quality specialist agent."""
 
         await self._emit_progress(
             state,
@@ -255,15 +257,17 @@ class ReviewGraph:
         state: ReviewGraphState,
         stage: str,
     ) -> dict[str, list[AgentReview]]:
-        """Run a specialist and return its review for state aggregation."""
+        """Run a specialist using its agent-specific context."""
 
         logger.info(
             "Running %s specialist agent",
             agent.agent_name,
         )
 
+        context = state["agent_contexts"][agent.agent_name]
+
         review = await agent.review(
-            state["context"],
+            context,
         )
 
         logger.info(

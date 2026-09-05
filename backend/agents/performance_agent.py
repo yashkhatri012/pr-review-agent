@@ -21,7 +21,7 @@ class PerformanceAgent(BaseReviewAgent):
 
     @property
     def context_keywords(self) -> set[str]:
-        """Return keywords for retrieving performance-related context."""
+        """Return keywords for retrieving performance related context """
 
         return {
             "performance",
@@ -44,3 +44,14 @@ class PerformanceAgent(BaseReviewAgent):
             "request",
             "io",
         }
+
+    @property
+    def retrieval_query(self) -> str:
+        """Return the semantic query used to retrieve performance related context"""
+
+        return (
+            "Find repository code relevant to detecting performance and "
+            "scalability problems introduced by this pull request, including "
+            "database access, repeated queries, API calls, loops, memory usage, "
+            "caching, I/O, concurrency, and expensive operations."
+        )

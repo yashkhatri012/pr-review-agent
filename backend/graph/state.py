@@ -1,4 +1,4 @@
-"""State definitions for the pull request review graph."""
+"""State definitions for the pull request review graph"""
 
 from __future__ import annotations
 
@@ -21,6 +21,8 @@ class ReviewGraphState(TypedDict, total=False):
     """State shared across the pull request review graph"""
 
     context: AgentContext
+
+    agent_contexts: dict[str, AgentContext]
 
     specialist_reviews: Annotated[
         list[AgentReview],

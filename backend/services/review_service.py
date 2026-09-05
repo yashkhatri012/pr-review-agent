@@ -40,19 +40,27 @@ class ReviewService:
         self._github = github_service
         self._rag = rag_service
 
+        self._quality_agent = QualityAgent(
+            llm_service.get_llm_for_agent("quality")
+        )
+
+        self._security_agent = SecurityAgent(
+            llm_service.get_llm_for_agent("security")
+        )
+
+        self._bug_agent = BugAgent(
+            llm_service.get_llm_for_agent("bug")
+        )
+
+        self._performance_agent = PerformanceAgent(
+            llm_service.get_llm_for_agent("performance")
+        )
+
         self._review_graph = ReviewGraph(
-            quality_agent=QualityAgent(
-                llm_service.get_llm_for_agent("quality")
-            ),
-            security_agent=SecurityAgent(
-                llm_service.get_llm_for_agent("security")
-            ),
-            bug_agent=BugAgent(
-                llm_service.get_llm_for_agent("bug")
-            ),
-            performance_agent=PerformanceAgent(
-                llm_service.get_llm_for_agent("performance")
-            ),
+            quality_agent=self._quality_agent,
+            security_agent=self._security_agent,
+            bug_agent=self._bug_agent,
+            performance_agent=self._performance_agent,
             validator=FinalValidatorAgent(
                 llm_service.get_llm_for_agent("validator")
             ),
@@ -111,15 +119,28 @@ class ReviewService:
                 "Building repository context with RAG...",
             )
 
+        agent_queries = {
+            "quality": self._quality_agent.retrieval_query,
+            "security": self._security_agent.retrieval_query,
+            "bug": self._bug_agent.retrieval_query,
+            "performance": self._performance_agent.retrieval_query,
+        }
+
         retrieval_result = await self._rag.build_context(
-            pull_request
+            pull_request,
+            agent_queries,
+        )
+
+        supporting_chunk_count = sum(
+            len(chunks)
+            for chunks in retrieval_result.supporting_chunks.values()
         )
 
         logger.info(
             "Retrieved %d changed-file chunks and "
             "%d supporting context chunks",
             len(retrieval_result.changed_file_chunks),
-            len(retrieval_result.supporting_chunks),
+            supporting_chunk_count,
         )
 
         if progress_callback is not None:
@@ -127,21 +148,35 @@ class ReviewService:
                 "building_context",
                 "completed",
                 (
-                    f"Retrieved {len(retrieval_result.changed_file_chunks)} "
+                    f"Retrieved "
+                    f"{len(retrieval_result.changed_file_chunks)} "
                     f"changed-file chunks and "
-                    f"{len(retrieval_result.supporting_chunks)} "
+                    f"{supporting_chunk_count} "
                     f"supporting context chunks."
                 ),
             )
 
-        context = AgentContext(
+        base_context = AgentContext(
             pull_request=pull_request,
             changed_file_context=retrieval_result.changed_file_chunks,
-            supporting_context=retrieval_result.supporting_chunks,
+            supporting_context=[],
         )
 
+        agent_contexts = {
+            agent_name: AgentContext(
+                pull_request=pull_request,
+                changed_file_context=retrieval_result.changed_file_chunks,
+                supporting_context=retrieval_result.supporting_chunks.get(
+                    agent_name,
+                    [],
+                ),
+            )
+            for agent_name in agent_queries
+        }
+
         graph_result = await self._review_graph.run(
-            context,
+            context=base_context,
+            agent_contexts=agent_contexts,
             progress_callback=progress_callback,
         )
 

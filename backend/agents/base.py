@@ -9,7 +9,6 @@ from abc import ABC, abstractmethod
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from backend.context.projector import ContextProjector
 from models.agent import AgentContext, AgentReview
 
 logger = logging.getLogger(__name__)
@@ -48,7 +47,7 @@ class BaseReviewAgent(ABC):
         """Initialize the agent with its configured LangChain chat model"""
 
         self._llm = llm
-        self._context_projector = ContextProjector()
+        
 
     @property
     @abstractmethod
@@ -59,8 +58,8 @@ class BaseReviewAgent(ABC):
     
     @property
     @abstractmethod
-    def context_keywords(self) -> set[str]:
-        """Return keywords used to select relevant supporting context."""
+    def retrieval_query(self) -> str:
+        """Return the semantic query used to retrieve supporting context."""
 
         raise NotImplementedError
     
@@ -82,13 +81,7 @@ class BaseReviewAgent(ABC):
             + _OUTPUT_FORMAT_INSTRUCTIONS
         )
 
-    def build_agent_context(self, context: AgentContext) -> AgentContext:
-        """Build the focused context used by this specialist agent"""
-
-        return self._context_projector.project(
-            context,
-            self.context_keywords,
-        )
+    
 
 
     def build_user_prompt(self, context: AgentContext) -> str:
@@ -145,7 +138,7 @@ class BaseReviewAgent(ABC):
         LLM failures or invalid responses degrade to an empty finding set so
         one specialist failure does not sink the entire pull request review
         """
-
+        
         messages = [
             SystemMessage(content=self.build_system_prompt()),
             HumanMessage(content=self.build_user_prompt(context)),
@@ -173,7 +166,7 @@ class BaseReviewAgent(ABC):
             )
         except Exception:
             logger.exception(
-                "%s agent returned an invalid structured response.",
+                "%s agent returned an invalid structured response",
                 self.agent_name,
             )
             return self._empty_review()
@@ -187,7 +180,7 @@ class BaseReviewAgent(ABC):
         return result
 
     def _empty_review(self) -> AgentReview:
-        """Return an empty review for this specialist agent."""
+        """Return an empty review for this specialist agent"""
 
         return AgentReview(
             agent_name=self.agent_name,
@@ -196,7 +189,7 @@ class BaseReviewAgent(ABC):
 
     @staticmethod
     def _strip_code_fences(text: str) -> str:
-        """Remove optional Markdown code fences from an LLM response."""
+        """Remove optional Markdown code fences from an LLM response"""
 
         stripped = text.strip()
 

@@ -68,25 +68,104 @@ class ContextRetriever:
                 pull_request,
             )
 
-            top_k = min(
-                self._top_k,
-                len(chunks),
-            )
-
-            results = collection.query(
-                query_texts=[query_text],
-                n_results=top_k,
-            )
-
-            return self._to_repository_chunks(
-                results,
-                chunks,
+            return self._query_collection(
+                collection=collection,
+                query_text=query_text,
+                chunks=chunks,
             )
 
         finally:
             self._client.delete_collection(
                 name=collection_name,
             )
+
+    def retrieve_for_agents(
+        self,
+        pull_request: PullRequest,
+        chunks: list[RepositoryChunk],
+        agent_queries: dict[str, str],
+    ) -> dict[str, list[RepositoryChunk]]:
+        """Retrieve supporting chunks separately for each review agent.
+
+        The repository chunks are indexed once and then queried separately
+        using each agent's specialized semantic query.
+        """
+
+        if not chunks or not agent_queries:
+            return {
+                agent_name: []
+                for agent_name in agent_queries
+            }
+
+        reference = pull_request.reference
+
+        collection_name = self._collection_name(
+            reference.owner,
+            reference.repository,
+            reference.number,
+        )
+
+        collection = self._client.get_or_create_collection(
+            name=collection_name,
+        )
+
+        try:
+            collection.add(
+                ids=[
+                    f"{chunk.file_path}::{chunk.chunk_index}"
+                    for chunk in chunks
+                ],
+                documents=[
+                    chunk.content
+                    for chunk in chunks
+                ],
+                metadatas=[
+                    {
+                        "file_path": chunk.file_path,
+                        "language": chunk.language or "",
+                    }
+                    for chunk in chunks
+                ],
+            )
+
+            results: dict[str, list[RepositoryChunk]] = {}
+
+            for agent_name, query_text in agent_queries.items():
+                results[agent_name] = self._query_collection(
+                    collection=collection,
+                    query_text=query_text,
+                    chunks=chunks,
+                )
+
+            return results
+
+        finally:
+            self._client.delete_collection(
+                name=collection_name,
+            )
+
+    def _query_collection(
+        self,
+        collection,
+        query_text: str,
+        chunks: list[RepositoryChunk],
+    ) -> list[RepositoryChunk]:
+        """Query a Chroma collection and convert results into repository chunks"""
+
+        top_k = min(
+            self._top_k,
+            len(chunks),
+        )
+
+        results = collection.query(
+            query_texts=[query_text],
+            n_results=top_k,
+        )
+
+        return self._to_repository_chunks(
+            results,
+            chunks,
+        )
 
     @staticmethod
     def _build_query_text(

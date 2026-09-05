@@ -19,7 +19,7 @@ class BugAgent(BaseReviewAgent):
         )
     @property
     def context_keywords(self) -> set[str]:
-        """Return keywords for retrieving correctness-related context"""
+        """Return keywords for retrieving correctness related context"""
 
         return {
             "bug",
@@ -40,3 +40,13 @@ class BugAgent(BaseReviewAgent):
             "await",
             "transaction",
         }
+    @property
+    def retrieval_query(self) -> str:
+        """Return the semantic query used to retrieve bug related context"""
+
+        return (
+            "Find repository code relevant to detecting correctness problems "
+            "introduced by this pull request, including control flow, state "
+            "changes, edge cases, validation, error handling, null handling, "
+            "exceptions, and interactions with existing behavior."
+        )

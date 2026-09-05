@@ -1,4 +1,4 @@
-"""Repository context retrieval for pull request reviews"""
+"""Repository context retrieval for pull request reviews."""
 
 from __future__ import annotations
 
@@ -17,12 +17,11 @@ from services.rag.file_selector import (
 )
 from services.rag.retriever import ContextRetriever
 
-
 logger = logging.getLogger(__name__)
 
 
-# Maximum number of related files read and embedded
-# Changed files are NOT subject to this limit
+# Maximum number of related files read and embedded.
+# Changed files are NOT subject to this limit.
 MAX_RELATED_FILES_TO_READ = 25
 
 
@@ -55,8 +54,9 @@ class RAGService:
     async def build_context(
         self,
         pull_request: PullRequest,
+        agent_queries: dict[str, str],
     ) -> RetrievalResult:
-        """Build changed file and supporting repository context for a PR"""
+        """Build changed file and agent-specific supporting context"""
 
         changed_chunks = await self._read_changed_file_chunks(
             pull_request,
@@ -75,18 +75,26 @@ class RAGService:
             related_paths,
         )
 
-        supporting_chunks = self._retriever.retrieve(
+        supporting_chunks = self._retriever.retrieve_for_agents(
             pull_request,
             related_chunks,
+            agent_queries,
+        )
+
+        supporting_chunk_count = sum(
+            len(chunks)
+            for chunks in supporting_chunks.values()
         )
 
         logger.info(
             "Built repository context for %s/%s#%s: "
-            "%d changed file chunks and %d supporting chunks",
+            "%d changed file chunks and %d supporting chunks "
+            "across %d agents",
             pull_request.reference.owner,
             pull_request.reference.repository,
             pull_request.reference.number,
             len(changed_chunks),
+            supporting_chunk_count,
             len(supporting_chunks),
         )
 
