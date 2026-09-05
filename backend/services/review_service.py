@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class ReviewService:
-    """Prepare pull request context and execute the review graph."""
+    """Prepare pull request context and execute the review graph"""
 
     def __init__(
         self,
@@ -34,7 +34,7 @@ class ReviewService:
         rag_service: RAGService,
         llm_service: LLMService,
     ) -> None:
-        """Initialize the services and agents used by the review pipeline."""
+        """Initialize the services and agents used by the review pipeline"""
 
         self._settings = settings
         self._github = github_service
@@ -66,7 +66,7 @@ class ReviewService:
         pr_url: str,
         progress_callback: ProgressCallback | None = None,
     ) -> ClientReview:
-        """Run the complete pull request review pipeline."""
+        """Run the complete pull request review pipeline"""
 
         start_time = time.monotonic()
 

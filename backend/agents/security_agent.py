@@ -19,3 +19,39 @@ class SecurityAgent(BaseReviewAgent):
             "- Other dangerous patterns\n"
             "Only report realistic issues supported by the code. Avoid speculative findings."
         )
+    @property
+    def context_keywords(self) -> set[str]:
+        """Return keywords for retrieving security-related repository context."""
+
+        return {
+            "auth",
+            "authentication",
+            "authorization",
+            "permission",
+            "permissions",
+            "role",
+            "roles",
+            "credential",
+            "credentials",
+            "password",
+            "secret",
+            "token",
+            "jwt",
+            "oauth",
+            "session",
+            "cookie",
+            "csrf",
+            "cors",
+            "sql",
+            "query",
+            "injection",
+            "input",
+            "sanitize",
+            "validation",
+            "escape",
+            "encrypt",
+            "encryption",
+            "decrypt",
+            "security",
+            "api",
+        }

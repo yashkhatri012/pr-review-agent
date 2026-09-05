@@ -68,12 +68,12 @@ STRICT RULES:
 """
 
 class ReviewWriterAgent:
-    """Produce the final client-facing pull request review."""
+    """Produce the final client facing pull request review"""
 
     agent_name = "review_writer"
 
     def __init__(self, llm: BaseChatModel) -> None:
-        """Initialize the review writer with its injected chat model."""
+        """Initialize the review writer with its injected chat model"""
 
         self._llm = llm
 
@@ -82,7 +82,7 @@ class ReviewWriterAgent:
         pull_request: PullRequest,
         review: FinalReview,
     ) -> ClientReview:
-        """Convert a validated review into a human-readable client review."""
+        """Convert a validated review into a human readable client review"""
 
         messages = [
             SystemMessage(content=_SYSTEM_PROMPT),
@@ -128,7 +128,7 @@ class ReviewWriterAgent:
         pull_request: PullRequest,
         review: FinalReview,
     ) -> str:
-        """Build the input containing only trusted review information."""
+        """Build the input containing only trusted review information"""
 
         return (
             f"Pull Request: {pull_request.title}\n"

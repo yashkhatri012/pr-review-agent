@@ -1,5 +1,5 @@
 
-"""Models describing the input to, and output from, review agents."""
+"""Models describing the input to, and output from, review agents"""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ class AgentContext(BaseModel):
 
 
 class AgentReview(BaseModel):
-    """The structured output every specialized agent must produce."""
+    """The structured output every specialized agent must produce"""
 
     agent_name: str
     findings: list[ReviewFinding] = Field(default_factory=list)

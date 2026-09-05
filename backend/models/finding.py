@@ -1,4 +1,4 @@
-"""Models representing individual review findings."""
+"""Models representing individual review findings"""
 from __future__ import annotations
 
 from enum import Enum
@@ -15,7 +15,7 @@ class Severity(str, Enum):
 
 
 class ReviewFinding(BaseModel):
-    """A single issue identified by an agent (or the validator)."""
+    """A single issue identified by an agent (or the validator)"""
 
     severity: Severity
     file: str

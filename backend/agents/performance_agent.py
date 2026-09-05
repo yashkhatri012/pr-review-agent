@@ -18,3 +18,29 @@ class PerformanceAgent(BaseReviewAgent):
             "- Obvious scalability problems\n"
             "Only report meaningful performance concerns."
         )
+
+    @property
+    def context_keywords(self) -> set[str]:
+        """Return keywords for retrieving performance-related context."""
+
+        return {
+            "performance",
+            "database",
+            "query",
+            "sql",
+            "cache",
+            "caching",
+            "async",
+            "await",
+            "thread",
+            "threading",
+            "process",
+            "memory",
+            "cpu",
+            "loop",
+            "batch",
+            "pagination",
+            "network",
+            "request",
+            "io",
+        }

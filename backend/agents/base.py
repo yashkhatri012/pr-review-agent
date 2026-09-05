@@ -1,4 +1,4 @@
-"""Base implementation for specialized pull request review agents."""
+"""Base implementation for specialized pull request review agents"""
 
 
 from __future__ import annotations
@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from backend.context.projector import ContextProjector
 from models.agent import AgentContext, AgentReview
 
 logger = logging.getLogger(__name__)
@@ -39,24 +40,32 @@ If you find no meaningful issues in your area of focus, return an empty
 
 
 class BaseReviewAgent(ABC):
-    """Common behavior for a specialized PR review agent."""
+    """Common behavior for a specialized PR review agent"""
 
     agent_name: str
 
     def __init__(self, llm: BaseChatModel) -> None:
-        """Initialize the agent with its configured LangChain chat model."""
+        """Initialize the agent with its configured LangChain chat model"""
 
         self._llm = llm
+        self._context_projector = ContextProjector()
 
     @property
     @abstractmethod
     def focus_description(self) -> str:
-        """Return a short description of the agent's review focus."""
+        """Return a short description of the agent's review focus"""
 
         raise NotImplementedError
+    
+    @property
+    @abstractmethod
+    def context_keywords(self) -> set[str]:
+        """Return keywords used to select relevant supporting context."""
 
+        raise NotImplementedError
+    
     def build_system_prompt(self) -> str:
-        """Build the system prompt defining the agent's review responsibility."""
+        """Build the system prompt defining the agent's review responsibility"""
 
         return (
             f"You are the {self.agent_name} agent, a specialized senior software "
@@ -73,8 +82,17 @@ class BaseReviewAgent(ABC):
             + _OUTPUT_FORMAT_INSTRUCTIONS
         )
 
+    def build_agent_context(self, context: AgentContext) -> AgentContext:
+        """Build the focused context used by this specialist agent"""
+
+        return self._context_projector.project(
+            context,
+            self.context_keywords,
+        )
+
+
     def build_user_prompt(self, context: AgentContext) -> str:
-        """Build the pull request and repository context for this agent."""
+        """Build the pull request and repository context for this agent"""
 
         pr = context.pull_request
 
@@ -122,10 +140,10 @@ class BaseReviewAgent(ABC):
         )
 
     async def review(self, context: AgentContext) -> AgentReview:
-        """Run this agent's review.
+        """Run this agent's review
 
         LLM failures or invalid responses degrade to an empty finding set so
-        one specialist failure does not sink the entire pull request review.
+        one specialist failure does not sink the entire pull request review
         """
 
         messages = [

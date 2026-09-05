@@ -1,4 +1,4 @@
-"""Parsing of GitHub Pull Request URLs."""
+"""Parsing of GitHub Pull Request URLs"""
 from __future__ import annotations
 
 import re
@@ -11,11 +11,11 @@ _PR_URL_PATTERN = re.compile(
 
 
 class InvalidPullRequestUrlError(ValueError):
-    """Raised when a string is not a valid GitHub Pull Request URL."""
+    """Raised when a string is not a valid GitHub Pull Request URL"""
 
 
 def parse_pull_request_url(url: str) -> PullRequestReference:
-    """Parse a GitHub PR URL into a strongly typed reference.
+    """Parse a GitHub PR URL into a strongly typed reference
 
     Example input: https://github.com/owner/repository/pull/123
     """

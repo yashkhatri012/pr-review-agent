@@ -1,6 +1,4 @@
-"""Final validator for specialist pull request review findings.
-
-The validator acts as the final quality gate for the review pipeline. It
+"""Final validator for specialist pull request review findings. It
 checks specialist findings against the pull request evidence, removes weak
 or duplicate findings, and produces the final review decision.
 """
@@ -100,12 +98,12 @@ Respond with ONLY a JSON object matching this exact schema, and nothing else
 
 
 class FinalValidatorAgent:
-    """Validate specialist findings and produce the final PR review."""
+    """Validate specialist findings and produce the final PR review"""
 
     agent_name = "final_validator"
 
     def __init__(self, llm: BaseChatModel) -> None:
-        """Initialize the validator with its injected chat model."""
+        """Initialize the validator with its injected chat model"""
 
         self._llm = llm
 
@@ -114,7 +112,7 @@ class FinalValidatorAgent:
         context: AgentContext,
         specialist_reviews: list[AgentReview],
     ) -> str:
-        """Build the evidence and specialist findings prompt."""
+        """Build the evidence and specialist findings prompt"""
 
         pr = context.pull_request
 
@@ -209,7 +207,7 @@ class FinalValidatorAgent:
 
             findings = [
                 ReviewFinding.model_validate(finding)
-                for finding in data.get("findings", [])
+                for finding in data.get("findings", []) # same as data["findings"] but safer, if "findings" key is missing returns []
             ]
 
         except (
@@ -256,7 +254,7 @@ def _strip_code_fences(text: str) -> str:
 def _fallback_merge(
     specialist_reviews: list[AgentReview],
 ) -> tuple[list[ReviewFinding], ReviewSummary]:
-    """Return specialist findings when final validation is unavailable.
+    """Return specialist findings when final validation is unavailable
 
     This fallback intentionally performs only deterministic aggregation and
     severity ordering. It does not claim that the findings were independently

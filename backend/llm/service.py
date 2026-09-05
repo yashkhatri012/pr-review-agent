@@ -1,4 +1,4 @@
-"""Centralized LLM configuration and access for PR review agents."""
+"""Centralized LLM configuration and access for PR review agents"""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from config.settings import Settings
 
 @dataclass(frozen=True)
 class LLMConfig:
-    """Configuration required to create an LLM."""
+    """Configuration required to create an LLM"""
 
 
     provider: str
@@ -21,7 +21,7 @@ class LLMConfig:
     
 
 class LLMRegistry:
-    """Create LangChain-compatible LLM instances."""
+    """Create LangChain compatible LLM instances"""
 
     
     def __init__(self, settings: Settings) -> None:
@@ -32,7 +32,7 @@ class LLMRegistry:
         self,
         config: LLMConfig,
     ) -> BaseChatModel:
-        """Create and return the configured chat model."""
+        """Create and return the configured chat model"""
         provider = config.provider.lower().strip()
         model = config.model.strip()
 
@@ -63,7 +63,7 @@ class LLMRegistry:
         self,
         model: str,
     ) -> BaseChatModel:
-        """Create an OpenAI chat model."""
+        """Create an OpenAI chat model"""
         return ChatOpenAI(
             model=model,
             api_key=self._require_api_key(
@@ -76,7 +76,7 @@ class LLMRegistry:
         self,
         model: str,
     ) -> BaseChatModel:
-        """Create a Groq chat model."""
+        """Create a Groq chat model"""
         return ChatOpenAI(
             model=model,
             api_key=self._require_api_key(
@@ -90,7 +90,7 @@ class LLMRegistry:
         self,
         model: str,
     ) -> BaseChatModel:
-        """Create a Gemini chat model."""
+        """Create a Gemini chat model"""
         return ChatGoogleGenerativeAI(
             model=model,
             google_api_key=self._require_api_key(
@@ -103,7 +103,7 @@ class LLMRegistry:
         self,
         model: str,
     ) -> BaseChatModel:
-        """Create a Mistral chat model."""
+        """Create a Mistral chat model"""
         return ChatMistralAI(
             model=model,
             api_key=self._require_api_key(
@@ -112,12 +112,12 @@ class LLMRegistry:
             ),
         )
 
-    @staticmethod
+    @staticmethod # Static, no agent state is required
     def _require_api_key(
         api_key: str | None,
         environment_variable: str,
     ) -> str:
-        """Return a configured API key or raise an error."""
+        """Return a configured API key or raise an error"""
         if not api_key:
             raise ValueError(
                 f"{environment_variable} is not configured."
@@ -127,7 +127,7 @@ class LLMRegistry:
 
 
 class LLMService:
-    """Provide LLM instances configured for each PR review agent."""
+    """Provide LLM instances configured for each PR review agent"""
 
     def __init__(self, settings: Settings) -> None:
         """Initialize the LLM service."""

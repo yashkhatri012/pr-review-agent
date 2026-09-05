@@ -18,7 +18,7 @@ ProgressCallback = Callable[
 
 
 class ReviewGraphState(TypedDict, total=False):
-    """State shared across the pull request review graph."""
+    """State shared across the pull request review graph"""
 
     context: AgentContext
 

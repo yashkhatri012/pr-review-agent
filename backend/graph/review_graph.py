@@ -1,4 +1,4 @@
-"""LangGraph orchestration for the pull request review pipeline."""
+"""LangGraph orchestration for the pull request review pipeline"""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class ReviewGraph:
-    """Coordinate the parallel specialist and final review stages."""
+    """Coordinate the parallel specialist and final review stages"""
 
     def __init__(
         self,
@@ -33,7 +33,7 @@ class ReviewGraph:
         validator: FinalValidatorAgent,
         review_writer: ReviewWriterAgent,
     ) -> None:
-        """Initialize the agents used by the review graph."""
+        """Initialize the agents used by the review graph"""
 
         self._quality_agent = quality_agent
         self._security_agent = security_agent
@@ -45,11 +45,11 @@ class ReviewGraph:
         self._graph = self._build_graph()
 
     def _build_graph(self) -> Any:
-        """Build and compile the pull request review graph."""
+        """Build and compile the pull request review graph"""
 
         builder = StateGraph(ReviewGraphState)
 
-        # Specialist nodes.
+        # Specialist nodes
         builder.add_node(
             "quality_review",
             self._run_quality_agent,
@@ -70,7 +70,7 @@ class ReviewGraph:
             self._run_performance_agent,
         )
 
-        # Final processing nodes.
+        # Final processing nodes
         builder.add_node(
             "validate_review",
             self._validate_review,
@@ -81,7 +81,7 @@ class ReviewGraph:
             self._write_review,
         )
 
-        # Specialist agents run in parallel.
+        # Specialist agents run in parallel
         builder.add_edge(
             START,
             "quality_review",
@@ -102,7 +102,7 @@ class ReviewGraph:
             "performance_review",
         )
 
-        # All specialist results flow into validation.
+        # All specialist results flow into validation
         builder.add_edge(
             "quality_review",
             "validate_review",
@@ -123,7 +123,7 @@ class ReviewGraph:
             "validate_review",
         )
 
-        # Final processing.
+        # Final processing
         builder.add_edge(
             "validate_review",
             "write_review",
@@ -141,7 +141,7 @@ class ReviewGraph:
         context: AgentContext,
         progress_callback: ProgressCallback | None = None,
     ) -> ReviewGraphState:
-        """Execute the pull request review graph."""
+        """Execute the pull request review graph"""
 
         initial_state: ReviewGraphState = {
             "context": context,
@@ -177,7 +177,7 @@ class ReviewGraph:
         self,
         state: ReviewGraphState,
     ) -> dict[str, list[AgentReview]]:
-        """Run the quality specialist agent."""
+        """Run the quality specialist agent"""
 
         await self._emit_progress(
             state,

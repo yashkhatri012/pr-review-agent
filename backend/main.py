@@ -1,4 +1,4 @@
-"""FastAPI application entrypoint for the PR Review Agent backend."""
+"""FastAPI application entrypoint for the PR Review Agent backend"""
 from __future__ import annotations
 
 import logging
@@ -11,6 +11,9 @@ from config.settings import get_settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def configure_logging() -> None:
     settings = get_settings()

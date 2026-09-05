@@ -1,13 +1,13 @@
-"""Central application configuration."""
+"""Central application configuration loaded from environment variables"""
 from __future__ import annotations
 
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
+# Instead of having code like os.getenv("GEMINI_API_KEY"), BaseSettings will automatically load environment variables into the Settings class attributes
 class Settings(BaseSettings):
-    """Application configuration loaded from environment variables."""
+    """Application configuration loaded from environment variables"""
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -65,8 +65,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     app_name: str = "PR Review Agent"
 
-
+# Configuration is loaded once and reused with caching to avoid different settings obtained from different parts of the application
 @lru_cache
 def get_settings() -> Settings:
-    """Return a cached Settings instance loaded once per process."""
+    """Return a cached Settings instance loaded once per process"""
     return Settings()

@@ -17,3 +17,26 @@ class BugAgent(BaseReviewAgent):
             "- Regression risks\n"
             "Use the repository context to understand surrounding behavior before reporting."
         )
+    @property
+    def context_keywords(self) -> set[str]:
+        """Return keywords for retrieving correctness-related context"""
+
+        return {
+            "bug",
+            "error",
+            "exception",
+            "try",
+            "except",
+            "condition",
+            "if",
+            "else",
+            "return",
+            "state",
+            "logic",
+            "validation",
+            "null",
+            "none",
+            "async",
+            "await",
+            "transaction",
+        }
