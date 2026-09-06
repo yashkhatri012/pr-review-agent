@@ -11,7 +11,7 @@ from config.settings import get_settings
 from fastapi.middleware.cors import CORSMiddleware
 from observability.logging import JsonFormatter
 from dotenv import load_dotenv
-
+from prometheus_client import make_asgi_app
 load_dotenv()
 
 def configure_logging() -> None:
@@ -45,6 +45,9 @@ def create_app() -> FastAPI:
     allow_methods=["*"],
     allow_headers=["*"],
     )
+
+    metrics_app = make_asgi_app()
+    app.mount("/metrics", metrics_app)
     return app
 
 

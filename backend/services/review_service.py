@@ -5,7 +5,10 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Awaitable, Callable
-
+from observability.metrics import (
+    review_requests_total,
+    review_duration_seconds,
+)
 from agents.bug_agent import BugAgent
 from agents.performance_agent import PerformanceAgent
 from agents.quality_agent import QualityAgent
@@ -93,8 +96,10 @@ class ReviewService:
         request_id = create_request_id()
         set_request_id(request_id)
 
-        reference = parse_pull_request_url(pr_url)
+        review_requests_total.inc()
 
+        reference = parse_pull_request_url(pr_url)
+        
         logger.info(
             "[request_id=%s] Starting review for %s/%s#%s",
              request_id,
@@ -255,6 +260,8 @@ class ReviewService:
 
         duration = time.monotonic() - start_time
 
+        review_duration_seconds.observe(duration)
+        
         logger.info(
             "Completed review for %s/%s#%s in %.2fs with "
             "%d final findings",

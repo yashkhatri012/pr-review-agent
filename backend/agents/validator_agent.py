@@ -11,7 +11,7 @@ import logging
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import ValidationError
-
+from utils.structured_output import _strip_code_fences
 from models.agent import AgentContext, AgentReview
 from models.finding import ReviewFinding, Severity
 from models.review import FinalReview, ReviewDecision, ReviewSummary
@@ -231,24 +231,6 @@ class FinalValidatorAgent:
             findings=findings,
         )
 
-
-def _strip_code_fences(text: str) -> str:
-    """Remove an optional Markdown code fence from an LLM response."""
-
-    stripped = text.strip()
-
-    if not stripped.startswith("```"):
-        return stripped
-
-    lines = stripped.splitlines()
-
-    if lines and lines[0].startswith("```"):
-        lines = lines[1:]
-
-    if lines and lines[-1].strip().startswith("```"):
-        lines = lines[:-1]
-
-    return "\n".join(lines).strip()
 
 
 def _fallback_merge(

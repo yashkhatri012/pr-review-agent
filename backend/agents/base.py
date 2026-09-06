@@ -1,4 +1,4 @@
-"""Base implementation for specialized pull request review agents."""
+"""Base implementation for specialized pull request review agents"""
 
 from __future__ import annotations
 
@@ -7,9 +7,10 @@ from abc import ABC, abstractmethod
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
-
+from observability.metrics import agent_duration_seconds
+from utils.structured_output import _strip_code_fences
 from models.agent import AgentContext, AgentReview
-
+import time
 logger = logging.getLogger(__name__)
 
 
@@ -130,45 +131,56 @@ class BaseReviewAgent(ABC):
         one specialist failure does not sink the entire pull request review.
         """
 
+        start_time = time.monotonic()
+
         messages = [
             SystemMessage(content=self.build_system_prompt()),
             HumanMessage(content=self.build_user_prompt(context)),
         ]
 
         try:
-            response = await self._llm.ainvoke(messages)
-        except Exception:
-            logger.exception(
-                "%s agent failed to invoke the LLM.",
-                self.agent_name,
-            )
-            return self._empty_review()
+            try:
+                response = await self._llm.ainvoke(messages)
+            except Exception:
+                logger.exception(
+                    "%s agent failed to invoke the LLM.",
+                    self.agent_name,
+                )
+                return self._empty_review()
 
-        if not isinstance(response.content, str):
-            logger.error(
-                "%s agent returned non-text content.",
-                self.agent_name,
-            )
-            return self._empty_review()
+            if not isinstance(response.content, str):
+                logger.error(
+                    "%s agent returned non-text content.",
+                    self.agent_name,
+                )
+                return self._empty_review()
 
-        try:
-            result = AgentReview.model_validate_json(
-                self._strip_code_fences(response.content)
-            )
-        except Exception:
-            logger.exception(
-                "%s agent returned an invalid structured response.",
-                self.agent_name,
-            )
-            return self._empty_review()
+            try:
+                result = AgentReview.model_validate_json(
+                    _strip_code_fences(response.content)
+                )
+            except Exception:
+                logger.exception(
+                    "%s agent returned an invalid structured response. Raw response: %r",
+                    self.agent_name,
+                    response.content,
+                )
+                return self._empty_review()
+            result.agent_name = self.agent_name
 
-        result.agent_name = self.agent_name
+            for finding in result.findings:
+                if self.agent_name not in finding.source_agents:
+                    finding.source_agents.append(self.agent_name)
 
-        for finding in result.findings:
-            if self.agent_name not in finding.source_agents:
-                finding.source_agents.append(self.agent_name)
+            return result
 
-        return result
+        finally:
+            duration = time.monotonic() - start_time
+
+            agent_duration_seconds.labels(
+                agent=self.agent_name,
+            ).observe(duration)
+    
 
     def _empty_review(self) -> AgentReview:
         """Return an empty review for this specialist agent."""
@@ -178,21 +190,4 @@ class BaseReviewAgent(ABC):
             findings=[],
         )
 
-    @staticmethod
-    def _strip_code_fences(text: str) -> str:
-        """Remove optional Markdown code fences from an LLM response."""
-
-        stripped = text.strip()
-
-        if not stripped.startswith("```"):
-            return stripped
-
-        lines = stripped.splitlines()
-
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]
-
-        return "\n".join(lines).strip()
+    

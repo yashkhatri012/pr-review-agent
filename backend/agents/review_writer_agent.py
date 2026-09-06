@@ -10,7 +10,7 @@ import logging
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
-
+from utils.structured_output import _strip_code_fences
 from models.client_review import ClientReview
 from models.pr import PullRequest
 from models.review import FinalReview
@@ -110,8 +110,8 @@ class ReviewWriterAgent:
 
         try:
             result = ClientReview.model_validate_json(
-                response.content,
-            )
+            _strip_code_fences(response.content)
+        )
         except Exception as exc:
             logger.error(
                 "Review writer returned invalid structured output: %s",
