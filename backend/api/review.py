@@ -1,4 +1,4 @@
-"""API routes for triggering and monitoring PR reviews."""
+"""API routes for triggering and monitoring PR reviews"""
 
 from __future__ import annotations
 
@@ -24,6 +24,9 @@ from services.github_service import (
     GitHubService,
     GitHubServiceError,
 )
+from auth.database import get_database
+from auth.dependencies import get_current_user
+from pymongo.database import Database
 from services.rag_service import RAGService
 from services.review_job import ReviewJobManager
 from services.review_service import ReviewService
@@ -99,6 +102,8 @@ async def health() -> HealthResponse:
 )
 async def review_pull_request(
     request: ReviewRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Database = Depends(get_database),
     review_service: ReviewService = Depends(get_review_service),
 ) -> ReviewResponse:
     """Run a pull request review synchronously."""
@@ -172,14 +177,37 @@ async def review_pull_request(
         review=final_review,
     )
 
-
 @router.post("/review/start")
 async def start_review(
     request: ReviewRequest,
     background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+    db: Database = Depends(get_database),
     review_service: ReviewService = Depends(get_review_service),
 ) -> dict[str, str]:
     """Start an asynchronous pull request review."""
+
+    # Atomically consume the user's one free review
+    result = db.users.update_one(
+        {
+            "_id": current_user["_id"],
+            "free_review_used": False,
+        },
+        {
+            "$set": {
+                "free_review_used": True,
+            }
+        },
+    )
+
+    if result.modified_count != 1:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Your one free PR review has already been used. "
+                "Please contact support to request additional reviews."
+            ),
+        )
 
     job = _job_manager.create_job()
 
@@ -193,7 +221,6 @@ async def start_review(
     return {
         "review_id": job.review_id,
     }
-
 @router.get("/review/{review_id}/events")
 async def review_events(
     review_id: str,

@@ -7,12 +7,15 @@ from fastapi import FastAPI
 
 from api.review import router as review_router
 from config.settings import get_settings
-
+from api.auth import router as auth_router
 from fastapi.middleware.cors import CORSMiddleware
 from observability.logging import JsonFormatter
 from dotenv import load_dotenv
 from prometheus_client import make_asgi_app
+
+from auth.database import initialize_database
 load_dotenv()
+initialize_database()
 
 def configure_logging() -> None:
     settings = get_settings()
@@ -38,6 +41,7 @@ def create_app() -> FastAPI:
         version="0.1.0",
     )
     app.include_router(review_router)
+    app.include_router(auth_router)
     app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],

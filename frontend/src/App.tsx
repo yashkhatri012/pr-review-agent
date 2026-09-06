@@ -8,6 +8,7 @@ import { Moon, Sun } from "lucide-react";
 
 import { useTheme } from "@/hooks/use-theme";
 
+import { AuthButton } from "@/components/auth/AuthButton";
 import { FindingsList } from "@/components/review/FindingsList";
 import { KeyPoints } from "@/components/review/KeyPoints";
 import { ReviewHeader } from "@/components/review/ReviewHeader";
@@ -16,6 +17,8 @@ import {
   type ReviewProgressState,
 } from "@/components/review/ReviewProgress";
 import { ReviewStats } from "@/components/review/ReviewStats";
+
+import { loginWithGoogle, type User } from "@/lib/auth";
 
 interface ReviewResponse {
   summary: {
@@ -41,33 +44,48 @@ interface StartReviewResponse {
   review_id: string;
 }
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 function App() {
   const [prUrl, setPrUrl] = useState("");
   const [review, setReview] = useState<ReviewResponse | null>(null);
   const [progress, setProgress] = useState<ReviewProgressState>({});
   const [isReviewing, setIsReviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const { theme, toggleTheme } = useTheme();
+
   const startReview = async () => {
     if (!prUrl.trim()) {
       setError("Please enter a pull request URL.");
       return;
     }
 
-    // Reset previous state.
+    if (!user) {
+      loginWithGoogle();
+      return;
+    }
+
+    if (user.free_review_used) {
+      setError(
+        "You have already used your one free PR review. Please contact support to request additional reviews.",
+      );
+      return;
+    }
+
     setReview(null);
     setProgress({});
     setError(null);
     setIsReviewing(true);
 
-    // Close any previous SSE connection.
     eventSourceRef.current?.close();
 
     try {
-      const response = await fetch("http://localhost:8000/api/review/start", {
+      const response = await fetch(`${API_URL}/api/review/start`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
@@ -77,7 +95,19 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to start pull request review.");
+        let message = "Failed to start pull request review.";
+
+        try {
+          const data = await response.json();
+
+          if (typeof data.detail === "string") {
+            message = data.detail;
+          }
+        } catch {
+          // Use default message.
+        }
+
+        throw new Error(message);
       }
 
       const data: StartReviewResponse = await response.json();
@@ -96,7 +126,7 @@ function App() {
 
   const connectToProgressStream = (reviewId: string) => {
     const eventSource = new EventSource(
-      `http://localhost:8000/api/review/${reviewId}/events`,
+      `${API_URL}/api/review/${reviewId}/events`,
     );
 
     eventSourceRef.current = eventSource;
@@ -135,21 +165,20 @@ function App() {
       }
     });
 
-    // This handles the custom SSE event:
-    // event: error
     eventSource.addEventListener("review_error", (event) => {
-  try {
-    const data = JSON.parse(event.data);
-    setError(data.message || "The pull request review failed.");
-  } catch {
-    setError("The pull request review failed.");
-  }
+      try {
+        const data = JSON.parse(event.data);
 
-  setIsReviewing(false);
-  eventSource.close();
-  eventSourceRef.current = null;
-});
-    // This handles an actual SSE connection failure.
+        setError(data.message || "The pull request review failed.");
+      } catch {
+        setError("The pull request review failed.");
+      }
+
+      setIsReviewing(false);
+      eventSource.close();
+      eventSourceRef.current = null;
+    });
+
     eventSource.onerror = () => {
       if (eventSource.readyState === EventSource.CLOSED) {
         setIsReviewing(false);
@@ -168,7 +197,6 @@ function App() {
   return (
     <main className="min-h-screen bg-background px-6 py-10 text-foreground">
       <div className="mx-auto max-w-5xl space-y-8">
-        {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
@@ -181,21 +209,24 @@ function App() {
             </p>
           </div>
 
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={toggleTheme}
-            aria-label="Toggle theme"
-          >
-            {theme === "dark" ? (
-              <Sun className="h-4 w-4" />
-            ) : (
-              <Moon className="h-4 w-4" />
-            )}
-          </Button>
+          <div className="flex items-center gap-3">
+            <AuthButton onAuthChange={setUser} />
+
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleTheme}
+              aria-label="Toggle theme"
+            >
+              {theme === "dark" ? (
+                <Sun className="h-4 w-4" />
+              ) : (
+                <Moon className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         </div>
 
-        {/* PR input */}
         <Card>
           <CardContent className="flex gap-3 p-6">
             <Input
@@ -214,22 +245,23 @@ function App() {
               onClick={startReview}
               disabled={isReviewing || !prUrl.trim()}
             >
-              {isReviewing ? "Reviewing..." : "Review PR"}
+              {isReviewing
+                ? "Reviewing..."
+                : user
+                  ? "Review PR"
+                  : "Sign in to Review"}
             </Button>
           </CardContent>
         </Card>
 
-        {/* Error */}
         {error && (
           <Alert variant="destructive">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        {/* Live progress */}
         {isReviewing && <ReviewProgress progress={progress} />}
 
-        {/* Final review */}
         {review && !isReviewing && (
           <div className="space-y-6">
             <ReviewHeader

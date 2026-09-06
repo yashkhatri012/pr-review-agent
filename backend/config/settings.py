@@ -14,7 +14,26 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+        # --- MongoDB --------------------------------------------------------------
 
+    mongodb_uri: str
+    mongodb_database: str = "pr_review_agent"
+
+    # --- Google OAuth ---------------------------------------------------------
+
+    google_client_id: str
+    google_client_secret: str
+    google_redirect_uri: str
+
+    # --- Authentication -------------------------------------------------------
+
+    session_secret: str
+
+    frontend_url: str
+
+    session_cookie_secure: bool = True
+    session_cookie_samesite: str = "none"
+    
     # --- Agent specific LLM configuration ------------------------------------
 
     quality_llm_provider: str = "gemini"
