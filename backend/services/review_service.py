@@ -20,9 +20,9 @@ from models.client_review import ClientReview
 from services.github_service import GitHubService
 from services.rag_service import RAGService
 from utils.github_url import parse_pull_request_url
+from observability.context import create_request_id, set_request_id
 
 logger = logging.getLogger(__name__)
-
 
 ProgressCallback = Callable[
     [str, str, str],
@@ -87,11 +87,17 @@ class ReviewService:
         """Run the complete pull request review pipeline."""
 
         start_time = time.monotonic()
+        #For different requests, we want to have different request IDs for observability and tracing purposes
+        # So we create a new request ID for each review request and set it in the context
+        # created here because review_pull_request is the beginning of the operation
+        request_id = create_request_id()
+        set_request_id(request_id)
 
         reference = parse_pull_request_url(pr_url)
 
         logger.info(
-            "Starting review for %s/%s#%s",
+            "[request_id=%s] Starting review for %s/%s#%s",
+             request_id,
             reference.owner,
             reference.repository,
             reference.number,

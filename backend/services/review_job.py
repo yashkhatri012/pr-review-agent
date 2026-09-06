@@ -1,4 +1,4 @@
-"""In-memory review job management and progress event streaming."""
+"""In memory review job management and progress event streaming."""
 
 from __future__ import annotations
 

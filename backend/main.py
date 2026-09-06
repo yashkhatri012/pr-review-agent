@@ -8,19 +8,28 @@ from fastapi import FastAPI
 from api.review import router as review_router
 from config.settings import get_settings
 
-from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
+from observability.logging import RequestIdFilter
 from dotenv import load_dotenv
 
 load_dotenv()
 
 def configure_logging() -> None:
     settings = get_settings()
-    logging.basicConfig(
-        level=settings.log_level,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+
+    handler = logging.StreamHandler()
+    handler.addFilter(RequestIdFilter())
+
+    formatter = logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s "
+        "[request_id=%(request_id)s]: %(message)s"
     )
+    handler.setFormatter(formatter)
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(settings.log_level)
+    root_logger.handlers.clear()
+    root_logger.addHandler(handler)
 
 
 def create_app() -> FastAPI:
