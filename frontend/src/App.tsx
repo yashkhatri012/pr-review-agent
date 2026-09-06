@@ -17,7 +17,7 @@ import {
   type ReviewProgressState,
 } from "@/components/review/ReviewProgress";
 import { ReviewStats } from "@/components/review/ReviewStats";
-
+import { ReviewCredits } from "@/components/review/ReviewCredits";
 import { loginWithGoogle, type User } from "@/lib/auth";
 
 interface ReviewResponse {
@@ -226,7 +226,7 @@ function App() {
             </Button>
           </div>
         </div>
-
+            <ReviewCredits user={user} />
         <Card>
           <CardContent className="flex gap-3 p-6">
             <Input
