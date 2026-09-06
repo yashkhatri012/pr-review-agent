@@ -9,7 +9,7 @@ from api.review import router as review_router
 from config.settings import get_settings
 
 from fastapi.middleware.cors import CORSMiddleware
-from observability.logging import RequestIdFilter
+from observability.logging import JsonFormatter
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,12 +18,8 @@ def configure_logging() -> None:
     settings = get_settings()
 
     handler = logging.StreamHandler()
-    handler.addFilter(RequestIdFilter())
 
-    formatter = logging.Formatter(
-        "%(asctime)s [%(levelname)s] %(name)s "
-        "[request_id=%(request_id)s]: %(message)s"
-    )
+    formatter = JsonFormatter()
     handler.setFormatter(formatter)
 
     root_logger = logging.getLogger()

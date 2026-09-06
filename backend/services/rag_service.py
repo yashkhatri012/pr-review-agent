@@ -87,15 +87,15 @@ class RAGService:
         )
 
         logger.info(
-            "Built repository context for %s/%s#%s: "
-            "%d changed file chunks and %d supporting chunks "
-            "across %d agents",
-            pull_request.reference.owner,
-            pull_request.reference.repository,
-            pull_request.reference.number,
-            len(changed_chunks),
-            supporting_chunk_count,
-            len(supporting_chunks),
+            "rag_context_built",
+            extra={
+                "event": "rag_context_built",
+                "repository": f"{pull_request.reference.owner}/{pull_request.reference.repository}",
+                "pull_request": pull_request.reference.number,
+                "changed_file_chunks": len(changed_chunks),
+                "supporting_chunks": supporting_chunk_count,
+                "agent_count": len(agent_queries),
+            },
         )
 
         return RetrievalResult(

@@ -103,13 +103,18 @@ class ReviewService:
             reference.number,
         )
 
+        github_start = time.monotonic()
+
         pull_request = await self._github.fetch_pull_request(
             reference
         )
 
+        github_duration = time.monotonic() - github_start
+
         logger.info(
-            "Fetched PR with %d changed files",
-            len(pull_request.changed_files),
+            "[request_id=%s] GitHub fetch completed in %.2fs",
+            request_id,
+            github_duration,
         )
 
         await self._emit_progress(
@@ -143,23 +148,39 @@ class ReviewService:
             "running",
             "Retrieving relevant repository context...",
         )
-
+        rag_start = time.monotonic()
         retrieval_result = await self._rag.build_context(
             pull_request,
             agent_queries,
         )
+        rag_duration = time.monotonic() - rag_start
+
+        # extra adds structured attributes to the Python LogRecord
+        # it doesn't send JSON anywhere
+
+        logger.info(
+        "rag_completed",
+        extra={
+            "event": "rag_completed",
+            "duration_seconds": round(rag_duration, 3),
+            "changed_file_chunks": len(
+                retrieval_result.changed_file_chunks
+            ),
+            "supporting_chunks": sum(
+                len(chunks)
+                for chunks in retrieval_result.supporting_chunks.values()
+            ),
+        },
+    )
+
+
 
         supporting_chunk_count = sum(
             len(chunks)
             for chunks in retrieval_result.supporting_chunks.values()
         )
 
-        logger.info(
-            "Retrieved %d changed-file chunks and "
-            "%d agent-specific supporting chunks",
-            len(retrieval_result.changed_file_chunks),
-            supporting_chunk_count,
-        )
+        
 
         await self._emit_progress(
             progress_callback,
