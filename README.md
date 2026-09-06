@@ -8,6 +8,11 @@ Instead of sending a PR diff to a single LLM and asking it to review everything,
 
 ---
 
+ 📖 **Read the technical deep dive:**  
+> [How I Built a Multi Agent AI Code Review System](https://medium.com/@yashkhatri01/building-a-pr-review-agent-where-the-real-problems-begin-d93d30819e77)
+>
+
+
 ## ✨ What Makes This Different?
 
 A simple AI code reviewer might look like:
