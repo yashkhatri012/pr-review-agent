@@ -48,9 +48,7 @@ class Settings(BaseSettings):
     performance_llm_provider: str = "gemini"
     performance_llm_model: str = ""
 
-    architecture_llm_provider: str = "gemini"
-    architecture_llm_model: str = ""
-
+    
     validator_llm_provider: str = "gemini"
     validator_llm_model: str = ""
 

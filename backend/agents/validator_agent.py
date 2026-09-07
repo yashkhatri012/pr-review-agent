@@ -192,14 +192,36 @@ class FinalValidatorAgent:
         try:
             response = await self._llm.ainvoke(messages)
 
-            if not isinstance(response.content, str):
+            content = response.content
+
+            if isinstance(content, str):
+                text_content = content
+            elif isinstance(content, list):
+                text_parts = []
+
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        text = block.get("text")
+                        if isinstance(text, str):
+                            text_parts.append(text)
+
+                text_content = "".join(text_parts)
+
+                if not text_content:
+                    raise TypeError(
+                        f"Validator returned content without usable text: {content!r}"
+                    )
+            else:
                 raise TypeError(
-                    "Validator returned non-text content."
+                    f"Validator returned unsupported content type: "
+                    f"{type(content).__name__}"
                 )
 
             data = json.loads(
-                _strip_code_fences(response.content),
+                _strip_code_fences(text_content),
             )
+
+            
 
             summary = ReviewSummary.model_validate(
                 data["summary"],

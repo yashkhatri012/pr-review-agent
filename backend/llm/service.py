@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from xml.parsers.expat import model
 
 from langchain_core.language_models.chat_models import BaseChatModel
+
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_mistralai import ChatMistralAI
 from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
 from config.settings import Settings
+from utils.gemini_key_manager import GeminiKeyManager
+from utils.rotating_gemini import RotatingGemini
+
 
 @dataclass(frozen=True)
 class LLMConfig:
@@ -19,7 +22,7 @@ class LLMConfig:
 
     provider: str
     model: str
-    
+
 
 class LLMRegistry:
     """Create LangChain compatible LLM instances"""
@@ -28,6 +31,7 @@ class LLMRegistry:
     def __init__(self, settings: Settings) -> None:
         """Initialize the LLM registry."""
         self._settings = settings
+        self._gemini_key_manager = GeminiKeyManager()
 
     def get_llm(
         self,
@@ -94,13 +98,10 @@ class LLMRegistry:
         model: str,
     ) -> BaseChatModel:
         """Create a Gemini chat model"""
-        return ChatGoogleGenerativeAI(
-            model=model,
-            google_api_key=self._require_api_key(
-                self._settings.gemini_api_key,
-                "GEMINI_API_KEY",
-            ),
-        )
+        return RotatingGemini(
+        model=model,
+        key_manager=self._gemini_key_manager,
+    )
 
     def _create_mistral(
         self,
@@ -118,11 +119,13 @@ class LLMRegistry:
         self,
         model: str,
     ) -> BaseChatModel:
-        """Create a local Ollama chat model."""
+        """Create a local Ollama chat model """
         return ChatOllama(
             model=model,
             base_url="http://localhost:11434",
         )
+
+    
     @staticmethod # Static, no agent state is required
     def _require_api_key(
         api_key: str | None,
@@ -175,10 +178,6 @@ class LLMService:
             "performance": LLMConfig(
                 provider=self._settings.performance_llm_provider,
                 model=self._settings.performance_llm_model,
-            ),
-            "architecture": LLMConfig(
-                provider=self._settings.architecture_llm_provider,
-                model=self._settings.architecture_llm_model,
             ),
             "validator": LLMConfig(
                 provider=self._settings.validator_llm_provider,

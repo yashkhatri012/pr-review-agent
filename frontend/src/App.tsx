@@ -68,9 +68,9 @@ function App() {
       return;
     }
 
-    if (user.free_review_used) {
+    if (user.free_review_used>=2) {
       setError(
-        "You have already used your one free PR review. Please contact support to request additional reviews.",
+        "You have already used your two free PR reviews. Please contact support to request additional reviews.",
       );
       return;
     }

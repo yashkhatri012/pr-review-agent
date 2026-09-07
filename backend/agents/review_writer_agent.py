@@ -103,15 +103,37 @@ class ReviewWriterAgent:
             )
             raise
 
-        if not isinstance(response.content, str):
+        content = response.content
+
+        if isinstance(content, str):
+            text_content = content
+        elif isinstance(content, list):
+            text_parts = []
+
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text = block.get("text")
+                    if isinstance(text, str):
+                        text_parts.append(text)
+
+            text_content = "".join(text_parts)
+
+            if not text_content:
+                raise TypeError(
+                    f"Review writer returned content without usable text: {content!r}"
+                )
+        else:
             raise TypeError(
-                "Review writer returned non-text content."
+                f"Review writer returned unsupported content type: "
+                f"{type(content).__name__}"
             )
 
         try:
             result = ClientReview.model_validate_json(
-            _strip_code_fences(response.content)
-        )
+                _strip_code_fences(text_content)
+            )
+
+        
         except Exception as exc:
             logger.error(
                 "Review writer returned invalid structured output: %s",

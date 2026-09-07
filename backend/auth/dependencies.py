@@ -1,4 +1,4 @@
-"""Authentication dependencies."""
+"""Authentication dependencies"""
 
 from __future__ import annotations
 

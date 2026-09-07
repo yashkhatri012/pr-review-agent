@@ -1,4 +1,4 @@
-"""Authentication API routes."""
+"""Authentication API routes"""
 
 from __future__ import annotations
 
@@ -179,7 +179,7 @@ async def google_callback(
                 ).datetime.now(
                     __import__("datetime").timezone.utc
                 ),
-                "free_review_used": False,
+                "free_review_used": 0,
             }
         )
     else:
@@ -242,7 +242,7 @@ async def get_me(
         "picture": current_user.get("picture"),
         "free_review_used": current_user.get(
             "free_review_used",
-            False,
+            0,
         ),
     }
 

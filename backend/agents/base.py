@@ -141,23 +141,47 @@ class BaseReviewAgent(ABC):
         try:
             try:
                 response = await self._llm.ainvoke(messages)
-            except Exception:
-                logger.exception(
-                    "%s agent failed to invoke the LLM.",
-                    self.agent_name,
-                )
-                return self._empty_review()
-
-            if not isinstance(response.content, str):
+            except Exception as exc:
                 logger.error(
-                    "%s agent returned non-text content.",
+                    "%s agent failed to invoke the LLM: %r",
                     self.agent_name,
+                    exc,
+                    exc_info=True,
                 )
                 return self._empty_review()
 
+            content = response.content
+
+            if isinstance(content, str):
+                text_content = content
+            elif isinstance(content, list):
+                text_parts = []
+
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        text = block.get("text")
+                        if isinstance(text, str):
+                            text_parts.append(text)
+
+                text_content = "".join(text_parts)
+
+                if not text_content:
+                    logger.error(
+                        "%s agent returned content without usable text: %r",
+                        self.agent_name,
+                        content,
+                    )
+                    return self._empty_review()
+            else:
+                logger.error(
+                    "%s agent returned unsupported content type: %s",
+                    self.agent_name,
+                    type(content).__name__,
+                )
+                return self._empty_review()
             try:
                 result = AgentReview.model_validate_json(
-                    _strip_code_fences(response.content)
+                    _strip_code_fences(text_content)
                 )
             except Exception:
                 logger.exception(
@@ -166,6 +190,9 @@ class BaseReviewAgent(ABC):
                     response.content,
                 )
                 return self._empty_review()
+
+
+            
             result.agent_name = self.agent_name
 
             for finding in result.findings:

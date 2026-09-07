@@ -4,7 +4,7 @@ export interface User {
   email: string | null;
   name: string | null;
   picture: string | null;
-  free_review_used: boolean;
+  free_review_used: number;
 }
 
 const API_URL = import.meta.env.VITE_API_URL;

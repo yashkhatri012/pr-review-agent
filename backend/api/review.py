@@ -185,17 +185,18 @@ async def start_review(
     db: Database = Depends(get_database),
     review_service: ReviewService = Depends(get_review_service),
 ) -> dict[str, str]:
-    """Start an asynchronous pull request review."""
+    """Start an asynchronous pull request review"""
 
-    # Atomically consume the user's one free review
+   
+    # Atomically consume one of the user's two free reviews
     result = db.users.update_one(
         {
             "_id": current_user["_id"],
-            "free_review_used": False,
+            "free_review_used": {"$lt": 2},
         },
         {
-            "$set": {
-                "free_review_used": True,
+            "$inc": {
+                "free_review_used": 1,
             }
         },
     )
@@ -204,7 +205,7 @@ async def start_review(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
-                "Your one free PR review has already been used. "
+                "Your two free PR reviews have already been used. "
                 "Please contact support to request additional reviews."
             ),
         )

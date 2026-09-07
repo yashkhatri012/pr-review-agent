@@ -1,4 +1,4 @@
-"""MongoDB connection and database helpers."""
+"""MongoDB connection and database helpers"""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from config.settings import get_settings
 
 @lru_cache
 def get_mongo_client() -> MongoClient:
-    """Return the shared MongoDB client."""
+    """Return the shared MongoDB client"""
 
     settings = get_settings()
 
@@ -23,7 +23,7 @@ def get_mongo_client() -> MongoClient:
 
 
 def get_database() -> Database:
-    """Return the application database."""
+    """Return the application database"""
 
     settings = get_settings()
 
@@ -31,7 +31,7 @@ def get_database() -> Database:
 
 
 def initialize_database() -> None:
-    """Create required MongoDB indexes."""
+    """Create required MongoDB indexes"""
 
     db = get_database()
 

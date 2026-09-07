@@ -13,7 +13,7 @@ export function ReviewCredits({ user }: ReviewCreditsProps) {
           <p className="text-sm text-muted-foreground">
             You get{" "}
             <span className="font-medium text-foreground">
-              1 free PR review
+              2 free PR reviews
             </span>
             . Sign in with Google to get started.
           </p>
@@ -22,7 +22,9 @@ export function ReviewCredits({ user }: ReviewCreditsProps) {
     );
   }
 
-  const reviewsLeft = user.free_review_used ? 0 : 1;
+  const freeReviewsTotal = 2; 
+  const reviewsUsed = user.free_review_used ?? 0; 
+  const reviewsLeft = Math.max(0, freeReviewsTotal - reviewsUsed);
 
   if (reviewsLeft === 0) {
     return (
@@ -37,7 +39,7 @@ export function ReviewCredits({ user }: ReviewCreditsProps) {
           </p>
 
           <p className="mt-1 text-xs text-muted-foreground">
-            You have already used your one free PR review. Please contact support to request additional reviews.
+            You have already used your two free PR reviews. Please contact support to request additional reviews.
           </p>
         </CardContent>
       </Card>
