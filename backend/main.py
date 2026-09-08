@@ -44,7 +44,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["https://gtihub-pr-review-agent.vercel.app", "http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
