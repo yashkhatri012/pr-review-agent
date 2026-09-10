@@ -86,16 +86,15 @@ def get_review_service(
     )
 
 
-@router.get(
+@router.api_route(
     "/health",
-     methods=["GET", "HEAD"],
+    methods=["GET", "HEAD"],
     response_model=HealthResponse,
 )
 async def health() -> HealthResponse:
-    """Return the application health status"""
+    """Return the application health status."""
 
     return HealthResponse(status="ok")
-
 
 @router.post(
     "/review",
