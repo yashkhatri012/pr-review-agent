@@ -88,10 +88,11 @@ def get_review_service(
 
 @router.get(
     "/health",
+     methods=["GET", "HEAD"],
     response_model=HealthResponse,
 )
 async def health() -> HealthResponse:
-    """Return the application health status."""
+    """Return the application health status"""
 
     return HealthResponse(status="ok")
 
