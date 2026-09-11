@@ -127,6 +127,9 @@ function App() {
   const connectToProgressStream = (reviewId: string) => {
     const eventSource = new EventSource(
       `${API_URL}/api/review/${reviewId}/events`,
+      {
+      withCredentials: true,
+    },
     );
 
     eventSourceRef.current = eventSource;
